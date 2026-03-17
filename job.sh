@@ -66,3 +66,13 @@ $VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_retrieve_eng_span.
 $VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file output/xor_dev_retrieve_eng_span_v1_1_results.json
 $VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_full.jsonl --pred_file output/xor_train_full_results.json
 $VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_full_v1_1.jsonl --pred_file output/xor_dev_full_v1_1_results.json
+
+$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file xor-engspan/xor_train_retrieve_eng_span_results.json
+$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file xor-engspan/xor_dev_retrieve_eng_span_v1_1_results.json
+$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_train_full.jsonl --pred_file xor-engspan/xor_train_full_results.json
+$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_dev_full_v1_1.jsonl --pred_file xor-engspan/xor_dev_full_v1_1_results.json
+
+$VENV_PYTHON evals/eval_xor_full.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file xor-full/xor_train_retrieve_eng_span_results.json
+$VENV_PYTHON evals/eval_xor_full.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file xor-full/xor_dev_retrieve_eng_span_v1_1_results.json
+$VENV_PYTHON evals/eval_xor_full.py --data_file xor_train_full.jsonl --pred_file xor-full/xor_train_full_results.json
+$VENV_PYTHON evals/eval_xor_full.py --data_file xor_dev_full_v1_1.jsonl --pred_file xor-full/xor_dev_full_v1_1_results.json
