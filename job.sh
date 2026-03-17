@@ -61,3 +61,8 @@ wait $PID
 echo "Stopping Qdrant"
 kill "$QDRANT_PID" 2>/dev/null || true
 wait "$QDRANT_PID" 2>/dev/null || true
+
+$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file output/xor_train_retrieve_eng_span_results.json
+$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file output/xor_dev_retrieve_eng_span_v1_1_results.json
+$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_full.jsonl --pred_file output/xor_train_full_results.json
+$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_full_v1_1.jsonl --pred_file output/xor_dev_full_v1_1_results.json
