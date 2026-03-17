@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J CIMCL_RAG
+#SBATCH -J NEW_CIMCL_RAG
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200
@@ -28,6 +28,7 @@ fi
 
 export QDRANT_HOST=localhost
 export QDRANT_PORT=6333
+mkdir -p $QDRANT_STORAGE
 
 QDRANT_SANDBOX=qdrant_sandbox
 QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
@@ -54,7 +55,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
 
-$VENV_PYTHON baselines/dense_rag.py
+$VENV_PYTHON baselines/dense_rag.py &
 PID=$!
 wait $PID
 

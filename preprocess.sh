@@ -14,21 +14,21 @@ conda activate py310
 VENV_PYTHON=$(which python)
 
 # Download Wikipedia passages (Order: Arabic, Bengali, English, Finnish, Japanese, Korean, Russian, Telugu)
- list=(enwiki arwiki bnwiki fiwiki jawiki kowiki ruwiki tewiki)
+#  list=(enwiki arwiki bnwiki fiwiki jawiki kowiki ruwiki tewiki)
 
 #  for i in "${list[@]}"; do
 #      wget "https://archive.org/download/${i}-20190201/${i}-20190201-pages-articles-multistream.xml.bz2"
 #      bunzip2 "${i}-20190201-pages-articles-multistream.xml.bz2"
 #  done
 
- for i in "${list[@]}"; do
-    python -m wikiextractor.WikiExtractor \
-        ${i}-20190201-pages-articles-multistream.xml \
-        --json \
-        --processes 8 \
-        --bytes 1G \
-        --output ${i}_extracted
- done
+#  for i in "${list[@]}"; do
+#     python -m wikiextractor.WikiExtractor \
+#         ${i}-20190201-pages-articles-multistream.xml \
+#         --json \
+#         --processes 8 \
+#         --bytes 1G \
+#         --output ${i}_extracted
+#  done
 
 # Download XOR-Retrieve and XOR-EnglishSpan train and dev datasets
 
