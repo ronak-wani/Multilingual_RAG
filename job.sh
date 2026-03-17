@@ -28,10 +28,10 @@ fi
 
 export QDRANT_HOST=localhost
 export QDRANT_PORT=6333
-mkdir -p $QDRANT_STORAGE
 
 QDRANT_SANDBOX=qdrant_sandbox
 QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
+mkdir -p $QDRANT_STORAGE
 
 echo "Starting Qdrant"
 
