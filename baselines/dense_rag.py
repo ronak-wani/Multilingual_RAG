@@ -299,12 +299,13 @@ class DenseRAG:
 
         logger.info(f"Finished reading {file_path}")
 
-    async def retrieval_pipeline(self, file_path):
-        if not os.path.exists("output"):
-            os.makedirs("output")
-            logger.info("Created output directory")
+    async def retrieval_pipeline(self, file_path, retrieval_type):
+        output_dir = f"{retrieval_type}_output"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            logger.info(f"Created output directory: {output_dir}")
 
-        output_file = f"output/{os.path.splitext(file_path)[0]}_results.json"
+        output_file = f"{output_dir}/{os.path.splitext(file_path)[0]}_results.json"
 
         skip_count = self.count_existing_prompts(output_file)
         total_prompts = skip_count
@@ -402,7 +403,7 @@ class DenseRAG:
             if self.shutdown_requested:
                 break
 
-    async def main(self, skip_loading=False):
+    async def main(self, skip_loading=False, retrieval_type="multilingual"):
         try:
             if skip_loading:
                 logger.info("Skipping data loading. Starting retrieval pipelines")
@@ -417,7 +418,7 @@ class DenseRAG:
                 "xor_train_full.jsonl",
                 "xor_dev_full_v1_1.jsonl",
             ]:
-                await self.retrieval_pipeline(file_path)
+                await self.retrieval_pipeline(file_path, retrieval_type)
             logger.info("Completed all the retrieval pipelines")
 
             logger.info("Starting LLM inference")
@@ -439,7 +440,16 @@ if __name__ == '__main__':
         action='store_true',
         help='Skip data loading and only run retrieval/inference pipelines'
     )
-    
+
+    parser.add_argument(
+        '--retrieval-type',
+        type=str,
+        required=True,
+        choices=['monolingual', 'crosslingual', 'multilingual'],
+        help='Specify the retrieval type'
+    )
+
+
     args = parser.parse_args()
 
     try:
