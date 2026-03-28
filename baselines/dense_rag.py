@@ -244,7 +244,7 @@ class DenseRAG:
             keep_separator=False,
         )
 
-        wikis = ['arwiki', 'bnwiki', 'enwiki', 'fiwiki', 'jawiki', 'kowiki', 'ruwiki']
+        wikis = ['arwiki', 'bnwiki', 'enwiki', 'fiwiki', 'jawiki', 'kowiki', 'ruwiki', 'tewiki']
 
         logger.info(f"Procesing wikis: {wikis}")
 
@@ -439,7 +439,7 @@ if __name__ == '__main__':
         action='store_true',
         help='Skip data loading and only run retrieval/inference pipelines'
     )
-
+    
     args = parser.parse_args()
 
     try:

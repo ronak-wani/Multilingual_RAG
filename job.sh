@@ -55,7 +55,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
 
-$VENV_PYTHON baselines/dense_rag.py &
+$VENV_PYTHON baselines/dense_rag.py --skip-loading &
 PID=$!
 wait $PID
 
