@@ -335,7 +335,7 @@ class DenseRAG:
                 question = item['question']
                 query_embedding_raw = self.embed_model.encode_query([question])
                 query_embedding = query_embedding_raw[0].tolist()
-                search_result = self.retrieve(query_embedding)
+                search_result = self.retrieve(query_embedding, retrieval_type, item['lang'])
 
                 retrieved_context = [
                     point.payload["text"]
@@ -369,12 +369,33 @@ class DenseRAG:
         else:
             logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
 
-    def retrieve(self, embedding):
+    def retrieve(self, embedding, retrieval_type, lang):
+        query_filter = None
+        if retrieval_type == 'monolingual':
+            query_filter = models.Filter(
+                must=[models.FieldCondition(
+                    key="wiki",
+                    match=models.MatchValue(value=f"{lang}wiki")
+                )]
+            )
+
+        elif retrieval_type == 'crosslingual':
+            query_filter = models.Filter(
+                must=[models.FieldCondition(
+                    key="wiki",
+                    match=models.MatchValue(value="enwiki")
+                )]
+            )
+
+        elif retrieval_type == 'multilingual':
+            query_filter = None
+
         search_result = self.qdrant_client.query_points(
             collection_name=self.collection_name,
             query=embedding,
             limit=15,
             timeout=1200,
+            query_filter=query_filter,
         )
         return search_result
 
@@ -455,7 +476,7 @@ if __name__ == '__main__':
 
     try:
         xor = DenseRAG()
-        asyncio.run(xor.main(skip_loading=args.skip_loading))
+        asyncio.run(xor.main(skip_loading=args.skip_loading, retrieval_type=args.retrieval_type))
         logger.info("All XOR tasks completed")
     except Exception as e:
         logger.error("Program crashed abruptly", exc_info=True)
