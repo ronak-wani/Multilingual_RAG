@@ -3,8 +3,7 @@ import os, json, logging, sys
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor
 from langchain_core.documents import Document
-import uuid, time, aiofiles
-from pathlib import Path
+import uuid, aiofiles
 import gc
 import torch
 from huggingface_hub import login
@@ -398,6 +397,8 @@ class DenseRAG:
 
         chat_model = ChatHuggingFace(llm=HuggingFacePipeline(pipeline=pipe), tokenizer=tokenizer)
         logger.info(f"[{name}] LLM loaded successfully")
+
+        input_file = ""
 
         for item in self.read_file(input_file, skip_count=0):
             if self.shutdown_requested:
