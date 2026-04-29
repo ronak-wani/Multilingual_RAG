@@ -393,7 +393,7 @@ class DenseRAG:
         search_result = self.qdrant_client.query_points(
             collection_name=self.collection_name,
             query=embedding,
-            limit=15,
+            limit=100,
             timeout=1200,
             query_filter=query_filter,
         )

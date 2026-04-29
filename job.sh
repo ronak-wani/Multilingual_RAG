@@ -55,25 +55,18 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
 
-$VENV_PYTHON baselines/dense_rag.py --skip-loading &
+$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type monolingual &
+PID=$!
+wait $PID
+
+$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type multilingual &
+PID=$!
+wait $PID
+
+$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type crosslingual &
 PID=$!
 wait $PID
 
 echo "Stopping Qdrant"
 kill "$QDRANT_PID" 2>/dev/null || true
 wait "$QDRANT_PID" 2>/dev/null || true
-
-$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file output/xor_train_retrieve_eng_span_results.json
-$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file output/xor_dev_retrieve_eng_span_v1_1_results.json
-$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_train_full.jsonl --pred_file output/xor_train_full_results.json
-$VENV_PYTHON evals/eval_xor_retrieve.py --data_file xor_dev_full_v1_1.jsonl --pred_file output/xor_dev_full_v1_1_results.json
-
-$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file xor-engspan/xor_train_retrieve_eng_span_results.json
-$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file xor-engspan/xor_dev_retrieve_eng_span_v1_1_results.json
-$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_train_full.jsonl --pred_file xor-engspan/xor_train_full_results.json
-$VENV_PYTHON evals/eval_xor_engspan.py --data_file xor_dev_full_v1_1.jsonl --pred_file xor-engspan/xor_dev_full_v1_1_results.json
-
-$VENV_PYTHON evals/eval_xor_full.py --data_file xor_train_retrieve_eng_span.jsonl --pred_file xor-full/xor_train_retrieve_eng_span_results.json
-$VENV_PYTHON evals/eval_xor_full.py --data_file xor_dev_retrieve_eng_span_v1_1.jsonl --pred_file xor-full/xor_dev_retrieve_eng_span_v1_1_results.json
-$VENV_PYTHON evals/eval_xor_full.py --data_file xor_train_full.jsonl --pred_file xor-full/xor_train_full_results.json
-$VENV_PYTHON evals/eval_xor_full.py --data_file xor_dev_full_v1_1.jsonl --pred_file xor-full/xor_dev_full_v1_1_results.json
