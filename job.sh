@@ -5,8 +5,8 @@
 #SBATCH -J NEW_CIMCL_RAG
 #SBATCH -p short
 #SBATCH -t 24:00:00
-#SBATCH --constraint=H200
-#SBATCH --gres=gpu:H200:1
+#SBATCH --constraint=H200|H100
+#SBATCH --gres=gpu:1
 #SBATCH --requeue
 #SBATCH --signal=TERM@60
 #SBATCH --open-mode=append
@@ -55,9 +55,9 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
 
-$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type monolingual &
-PID=$!
-wait $PID
+# $VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type monolingual &
+# PID=$!
+# wait $PID
 
 $VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type multilingual &
 PID=$!
