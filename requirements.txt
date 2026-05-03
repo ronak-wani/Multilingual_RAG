@@ -50,6 +50,7 @@ langchain-huggingface==0.3.1
 langchain-text-splitters==0.3.11
 langdetect==1.0.9
 langsmith==0.4.37
+lingua-language-detector==2.2.0
 llvmlite==0.46.0
 lxml==6.0.2
 MarkupSafe==3.0.3

@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J TAR_TO_EN_TRANSLATION
+#SBATCH -J Translation
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -79,7 +79,7 @@ VENV_PYTHON=$(which python)
 $VENV_PYTHON baselines/translate.py \
     xor_dev_full_v1_1.jsonl \
     xor_train_full.jsonl \
-    --direction target-to-en \
+    --direction auto \
     --output-dir translated_benchmark_files \
     --batch-size 64 &
 TRANSLATE_TARGET_TO_EN_PID=$!
