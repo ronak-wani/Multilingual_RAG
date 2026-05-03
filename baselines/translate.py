@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 from tqdm import tqdm
 from transformers import AutoModelForImageTextToText, AutoProcessor
-
+from lingua import Language, LanguageDetector, LanguageDetectorBuilder, IsoCode639_1
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +39,6 @@ class Translate:
     SOURCE_LANG = "en"
     OUTPUT_DIR  = Path("translated_benchmark_files")
     CKPT_SUFFIX = ".ckpt.json"
-    _NON_ASCII_THRESHOLD = 0.25
 
     def __init__(
         self,
@@ -52,6 +51,7 @@ class Translate:
         self.batch_size = batch_size
         self.direction = direction
         self._shutdown_requested = False
+        self._detector_cache: dict[str, LanguageDetector] = {}
 
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT,  self._handle_signal)
@@ -80,28 +80,41 @@ class Translate:
         )
         self._shutdown_requested = True
 
+    def _get_detector(self, lang_code: str):
+        """Return a cached 2-language detector for (ENGLISH, lang_code)."""
+        if lang_code in self._detector_cache:
+            return self._detector_cache[lang_code]
+        try:
+            target = Language.from_iso_code_639_1(IsoCode639_1[lang_code.upper()])
+        except KeyError:
+            # lang_code not recognised by lingua — fall back to all-languages
+            detector = LanguageDetectorBuilder.from_all_languages().with_low_accuracy_mode().build()
+            self._detector_cache[lang_code] = detector
+            return detector
+
+        detector = (
+            LanguageDetectorBuilder
+            .from_languages(Language.ENGLISH, target)
+            .build()
+        )
+        self._detector_cache[lang_code] = detector
+        return detector
+
     def _detect_lang(self, answer: str, record_lang: str) -> tuple[str, str]:
         """
         Decide the translation direction for a single answer string.
-
-        Heuristic: count non-ASCII characters as a fraction of all non-space
-        characters.  A high fraction means the answer is already in the
-        record's (non-English) language; a low fraction means it is English.
         """
         if self.direction == "en-to-target":
             return self.SOURCE_LANG, record_lang
         if self.direction == "target-to-en":
             return record_lang, self.SOURCE_LANG
 
-        chars = [c for c in answer if not c.isspace()]
-        if not chars:
+        detector = self._get_detector(record_lang)
+        detected = detector.detect_language_of(answer)
+
+        if detected is None or detected == Language.ENGLISH:
             return self.SOURCE_LANG, record_lang
-
-        non_ascii_ratio = sum(1 for c in chars if ord(c) > 127) / len(chars)
-
-        if non_ascii_ratio > self._NON_ASCII_THRESHOLD:
-            return record_lang, self.SOURCE_LANG
-        return self.SOURCE_LANG, record_lang
+        return record_lang, self.SOURCE_LANG
 
     def count_lines(self, path: Path) -> int:
         """Fast byte-level line count for tqdm totals."""
@@ -450,15 +463,6 @@ if __name__ == '__main__':
         help="Max answer strings per model.generate() call.",
     )
 
-    parser.add_argument(
-        "--non-ascii-threshold",
-        type=float,
-        default=0.25,
-        help=(
-            "Fraction of non-space characters that must be non-ASCII for an "
-            "answer to be treated as non-English (default: %(default)s)."
-        ),
-    )
 
     parser.add_argument(
         "--direction", "-d",
@@ -468,15 +472,13 @@ if __name__ == '__main__':
             "Translation direction. "
             "'en-to-target' always translates from English to the record language, "
             "'target-to-en' always translates to English, "
-            "'auto' detects per-answer using the non-ASCII heuristic (default)."
+            "'auto' detects per-answer using lingua language detection (default)."
         ),
     )
 
     args = parser.parse_args()
 
     translator = Translate(batch_size=args.batch_size, direction=args.direction)
-    translator._NON_ASCII_THRESHOLD = args.non_ascii_threshold
-
 
     output_paths = translator.process_files(
         input_paths=args.inputs,
