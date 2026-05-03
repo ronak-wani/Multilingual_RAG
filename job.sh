@@ -17,56 +17,74 @@ VENV_PYTHON=$(which python)
 
 # rm -rf .qdrant-initialized qdrant_sandbox/ storage/ snapshots/ dense_rag.log
 
-module load apptainer
-
-if [ ! -d "qdrant_sandbox" ]; then
-    echo "Building Qdrant sandbox"
-    apptainer build --sandbox qdrant_sandbox docker://qdrant/qdrant:latest
-else
-    echo "Qdrant sandbox already exists"
-fi
-
-export QDRANT_HOST=localhost
-export QDRANT_PORT=6333
-
-QDRANT_SANDBOX=qdrant_sandbox
-QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
-mkdir -p $QDRANT_STORAGE
-
-echo "Starting Qdrant"
-
-apptainer exec \
-  --bind ${QDRANT_STORAGE}:/qdrant/storage \
-  --env QDRANT__SERVICE__HOST=0.0.0.0 \
-  --env QDRANT__STORAGE__WAL__SYNC=false \
-  $QDRANT_SANDBOX \
-  $QDRANT_SANDBOX/qdrant/qdrant &
-
-QDRANT_PID=$!
-echo "Qdrant PID: $QDRANT_PID"
-
-echo "Waiting for Qdrant"
-until curl -s http://localhost:6333/readyz > /dev/null; do
-    sleep 2
-done
-echo "Qdrant is ready."
-
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
-trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
-
+#module load apptainer
+#
+#if [ ! -d "qdrant_sandbox" ]; then
+#    echo "Building Qdrant sandbox"
+#    apptainer build --sandbox qdrant_sandbox docker://qdrant/qdrant:latest
+#else
+#    echo "Qdrant sandbox already exists"
+#fi
+#
+#export QDRANT_HOST=localhost
+#export QDRANT_PORT=6333
+#
+#QDRANT_SANDBOX=qdrant_sandbox
+#QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
+#mkdir -p $QDRANT_STORAGE
+#
+#echo "Starting Qdrant"
+#
+#apptainer exec \
+#  --bind ${QDRANT_STORAGE}:/qdrant/storage \
+#  --env QDRANT__SERVICE__HOST=0.0.0.0 \
+#  --env QDRANT__STORAGE__WAL__SYNC=false \
+#  $QDRANT_SANDBOX \
+#  $QDRANT_SANDBOX/qdrant/qdrant &
+#
+#QDRANT_PID=$!
+#echo "Qdrant PID: $QDRANT_PID"
+#
+#echo "Waiting for Qdrant"
+#until curl -s http://localhost:6333/readyz > /dev/null; do
+#    sleep 2
+#done
+#echo "Qdrant is ready."
+#
+#export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#
+#trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit 0' TERM
+#
 # $VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type monolingual &
 # PID=$!
 # wait $PID
+#
+#$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type multilingual &
+#PID=$!
+#wait $PID
+#
+#$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type crosslingual &
+#PID=$!
+#wait $PID
 
-$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type multilingual &
-PID=$!
-wait $PID
+$VENV_PYTHON translate.py \
+    xor_dev_retrieve_eng_span_v1_1.jsonl \
+    xor_train_retrieve_eng_span.jsonl \
+    --direction en-to-target \
+    --output-dir translated_benchmark_files \
+    --batch-size 64 &
+TRANSLATE_EN_TO_TARGET_PID=$!
+wait $TRANSLATE_EN_TO_TARGET_PID
 
-$VENV_PYTHON baselines/dense_rag.py --skip-loading --retrieval-type crosslingual &
-PID=$!
-wait $PID
+$VENV_PYTHON translate.py \
+    xor_dev_full_v1_1.jsonl \
+    xor_train_full.jsonl \
+    --direction target-to-en \
+    --output-dir translated_benchmark_files \
+    --batch-size 64 &
+TRANSLATE_TARGET_TO_EN_PID=$!
+wait $TRANSLATE_TARGET_TO_EN_PID
 
-echo "Stopping Qdrant"
-kill "$QDRANT_PID" 2>/dev/null || true
-wait "$QDRANT_PID" 2>/dev/null || true
+#echo "Stopping Qdrant"
+#kill "$QDRANT_PID" 2>/dev/null || true
+#wait "$QDRANT_PID" 2>/dev/null || true
