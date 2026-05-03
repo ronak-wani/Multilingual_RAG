@@ -2,10 +2,10 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J NEW_CIMCL_RAG
+#SBATCH -J TAR_TO_EN_TRANSLATION
 #SBATCH -p short
 #SBATCH -t 24:00:00
-#SBATCH --constraint=H200|H100
+#SBATCH --constraint=H200|H100|RTX6000B
 #SBATCH --gres=gpu:1
 #SBATCH --requeue
 #SBATCH --signal=TERM@60
@@ -67,14 +67,14 @@ VENV_PYTHON=$(which python)
 #PID=$!
 #wait $PID
 
-$VENV_PYTHON baselines/translate.py \
-    xor_dev_retrieve_eng_span_v1_1.jsonl \
-    xor_train_retrieve_eng_span.jsonl \
-    --direction en-to-target \
-    --output-dir translated_benchmark_files \
-    --batch-size 64 &
-TRANSLATE_EN_TO_TARGET_PID=$!
-wait $TRANSLATE_EN_TO_TARGET_PID
+# $VENV_PYTHON baselines/translate.py \
+#     xor_dev_retrieve_eng_span_v1_1.jsonl \
+#     xor_train_retrieve_eng_span.jsonl \
+#     --direction en-to-target \
+#     --output-dir translated_benchmark_files \
+#     --batch-size 64 &
+# TRANSLATE_EN_TO_TARGET_PID=$!
+# wait $TRANSLATE_EN_TO_TARGET_PID
 
 $VENV_PYTHON baselines/translate.py \
     xor_dev_full_v1_1.jsonl \
