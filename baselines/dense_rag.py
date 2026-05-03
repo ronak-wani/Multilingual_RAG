@@ -425,29 +425,29 @@ class DenseRAG:
             if self.shutdown_requested:
                 break
 
-    async def main(self, skip_loading=False, retrieval_type="multilingual"):
+    async def main(self, skip_retrieval = False, skip_loading=False, retrieval_type="multilingual"):
         try:
-            if skip_loading:
+            if skip_retrieval:
+                logger.info("Skipping retrieval. Starting inference pipelines")
+                logger.info("Starting LLM inference")
+                self.chat_llm("CohereLabs/aya-101"),
+                # self.chat_llm("google/gemma-3-27b-it"),
+                # self.chat_llm("Qwen/Qwen3-30B-A3B"),
+            elif skip_loading:
                 logger.info("Skipping data loading. Starting retrieval pipelines")
             else:
                 logger.info("Starting data loading")
                 await self.data_loading()
                 logger.info("Starting retrieval pipelines")
 
-            for file_path in [
-                "xor_dev_retrieve_eng_span_v1_1.jsonl",
-                "xor_train_retrieve_eng_span.jsonl",
-                "xor_train_full.jsonl",
-                "xor_dev_full_v1_1.jsonl",
-            ]:
-                await self.retrieval_pipeline(file_path, retrieval_type)
-            logger.info("Completed all the retrieval pipelines")
-
-            logger.info("Starting LLM inference")
-
-            # self.chat_llm("CohereLabs/aya-101"),
-            # self.chat_llm("google/gemma-3-27b-it"),
-            # self.chat_llm("Qwen/Qwen3-30B-A3B"),
+                for file_path in [
+                    "xor_dev_retrieve_eng_span_v1_1.jsonl",
+                    "xor_train_retrieve_eng_span.jsonl",
+                    "xor_train_full.jsonl",
+                    "xor_dev_full_v1_1.jsonl",
+                ]:
+                    await self.retrieval_pipeline(file_path, retrieval_type)
+                logger.info("Completed all the retrieval pipelines")
 
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
@@ -456,6 +456,12 @@ class DenseRAG:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
+
+    parser.add_argument(
+        '--skip-retrieval',
+        action='store_true',
+        help='Skip retrieval and only run inference pipelines'
+    )
 
     parser.add_argument(
         '--skip-loading',
@@ -476,7 +482,7 @@ if __name__ == '__main__':
 
     try:
         xor = DenseRAG()
-        asyncio.run(xor.main(skip_loading=args.skip_loading, retrieval_type=args.retrieval_type))
+        asyncio.run(xor.main(skip_retrieval=args.skip_retrieval, skip_loading=args.skip_loading, retrieval_type=args.retrieval_type))
         logger.info("All XOR tasks completed")
     except Exception as e:
         logger.error("Program crashed abruptly", exc_info=True)
