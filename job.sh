@@ -67,7 +67,7 @@ VENV_PYTHON=$(which python)
 #PID=$!
 #wait $PID
 
-$VENV_PYTHON translate.py \
+$VENV_PYTHON baselines/translate.py \
     xor_dev_retrieve_eng_span_v1_1.jsonl \
     xor_train_retrieve_eng_span.jsonl \
     --direction en-to-target \
@@ -76,7 +76,7 @@ $VENV_PYTHON translate.py \
 TRANSLATE_EN_TO_TARGET_PID=$!
 wait $TRANSLATE_EN_TO_TARGET_PID
 
-$VENV_PYTHON translate.py \
+$VENV_PYTHON baselines/translate.py \
     xor_dev_full_v1_1.jsonl \
     xor_train_full.jsonl \
     --direction target-to-en \
