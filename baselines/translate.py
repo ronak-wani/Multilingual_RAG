@@ -85,7 +85,8 @@ class Translate:
         if lang_code in self._detector_cache:
             return self._detector_cache[lang_code]
         try:
-            target = Language.from_iso_code_639_1(lang_code.lower())
+            iso_code = getattr(IsoCode639_1, lang_code.upper())
+            target = Language.from_iso_code_639_1(iso_code)
         except KeyError:
             # lang_code not recognised by lingua — fall back to all-languages
             detector = LanguageDetectorBuilder.from_all_languages().with_low_accuracy_mode().build()
