@@ -1,5 +1,14 @@
 import argparse, signal, glob
 import os, json, logging, sys
+from pathlib import Path
+
+from utils.model_config import (
+    ModelConfig,
+    get_model_config,
+    build_prompt,
+    QWEN_END_THINK_TOKEN_ID,
+)
+
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor
 from langchain_core.documents import Document
@@ -172,7 +181,8 @@ class DenseRAG:
                             if len(texts) >= batch_size and len(docs) >= batch_size:
                                 num_batch += 1
                                 torch.cuda.empty_cache()
-                                logger.info(f"[{wiki}] Starting embedding generation for Batch {num_batch} ({articles_processed:,} articles)")
+                                logger.info(
+                                    f"[{wiki}] Starting embedding generation for Batch {num_batch} ({articles_processed:,} articles)")
                                 embeddings_array = self.embed_model.encode_document(
                                     texts,
                                     batch_size=128,
@@ -189,13 +199,15 @@ class DenseRAG:
                                 torch.cuda.empty_cache()
                                 docs, texts = [], []
                                 if self.shutdown_requested:
-                                    logger.info(f"[{wiki}] Shutdown requested, stopping generator after batch {num_batch}")
+                                    logger.info(
+                                        f"[{wiki}] Shutdown requested, stopping generator after batch {num_batch}")
                                     return
             logger.info(f"[{wiki}] Completed {wiki_file} ({articles_processed:,} total articles)")
         if texts:
             num_batch += 1
             torch.cuda.empty_cache()
-            logger.info(f"[{wiki}] Starting embedding generation for final Batch {num_batch} ({articles_processed:,} articles)")
+            logger.info(
+                f"[{wiki}] Starting embedding generation for final Batch {num_batch} ({articles_processed:,} articles)")
             embeddings_array = self.embed_model.encode_document(
                 texts,
                 batch_size=128,
@@ -298,7 +310,7 @@ class DenseRAG:
 
         logger.info(f"Finished reading {file_path}")
 
-    async def retrieval_pipeline(self, file_path, retrieval_type):
+    async def retrieval_pipeline(self, file_path, retrieval_type, batch_size=64):
         output_dir = f"{retrieval_type}_output"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -322,57 +334,76 @@ class DenseRAG:
             else:
                 first_item = False
 
+            batch = []
+
             for item in self.read_file(file_path, skip_count):
                 if self.shutdown_requested:
                     logger.info(f"[{file_path}] Shutdown requested at prompt {total_prompts + 1}, stopping gracefully")
                     break
 
-                total_prompts += 1
+                batch.append(item)
 
-                if total_prompts % 100 == 1:
-                    logger.info(f"[{file_path}] Processing prompt {total_prompts}")
+                if len(batch) < batch_size:
+                    continue
 
-                question = item['question']
-                query_embedding_raw = self.embed_model.encode_query([question])
-                query_embedding = query_embedding_raw[0].tolist()
-                search_result = self.retrieve(query_embedding, retrieval_type, item['lang'])
+                first_item = await self._process_batch(batch, f, retrieval_type, first_item)
+                total_prompts += len(batch)
+                if total_prompts % 500 == 0:
+                    logger.info(f"[{file_path}] Processed {total_prompts} prompts")
+                batch = []
+                if self.shutdown_requested:
+                    break
+                await f.write("\n]")
 
-                retrieved_context = [
-                    point.payload["text"]
-                    for point in search_result.points
-                ]
-                prompt = {
-                    "id": item['id'],
-                    "lang": item['lang'],
-                    "question": item['question'],
-                    "ctxs": retrieved_context,
-                }
-                if not first_item:
-                    await f.write(",\n")
-                else:
-                    first_item = False
-
-                json_str = json.dumps(prompt, ensure_ascii=False, indent=4)
-                await f.write(json_str)
-
-                if total_prompts == 1 or (total_prompts == skip_count + 1 and skip_count > 0):
-                    logger.info(f"Sample Prompt: {prompt}")
-
-                await f.flush()
-
-            await f.write("\n]")
-            await f.flush()
-
-        if self.shutdown_requested:
-            logger.info(
-                f"[{file_path}] Graceful shutdown: Saved {total_prompts - skip_count} new prompts (total: {total_prompts})")
-        else:
             logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
 
-    def retrieve(self, embedding, retrieval_type, lang):
-        query_filter = None
+    async def _process_batch(self, batch, f, retrieval_type, first_item):
+        questions = [item['question'] for item in batch]
+
+        query_embeddings_raw = self.embed_model.encode_query(
+            questions,
+            batch_size=64,
+            show_progress_bar=False,
+            convert_to_tensor=False,
+            device='cuda',
+        )
+        embeddings_list = [query_embeddings_raw[i].tolist() for i in range(len(batch))]
+        del query_embeddings_raw
+        torch.cuda.empty_cache()
+
+        requests = [
+            models.QueryRequest(
+                query=embedding,
+                limit=100,
+                filter=self._build_filter(retrieval_type, item['lang']),
+            )
+            for embedding, item in zip(embeddings_list, batch)
+        ]
+
+        batch_results = self.qdrant_client.query_batch_points(
+            collection_name=self.collection_name,
+            requests=requests,
+            timeout=1200,
+        )
+        for item, result in zip(batch, batch_results):
+            prompt = {
+                "id": item['id'],
+                "lang": item['lang'],
+                "question": item['question'],
+                "ctxs": [point.payload["text"] for point in result.points],
+            }
+            if not first_item:
+                await f.write(",\n")
+            else:
+                first_item = False
+            await f.write(json.dumps(prompt, ensure_ascii=False, indent=4))
+
+        await f.flush()
+        return first_item
+
+    def _build_filter(self, retrieval_type, lang):
         if retrieval_type == 'monolingual':
-            query_filter = models.Filter(
+            return models.Filter(
                 must=[models.FieldCondition(
                     key="wiki",
                     match=models.MatchValue(value=f"{lang}wiki")
@@ -380,7 +411,7 @@ class DenseRAG:
             )
 
         elif retrieval_type == 'crosslingual':
-            query_filter = models.Filter(
+            return models.Filter(
                 must=[models.FieldCondition(
                     key="wiki",
                     match=models.MatchValue(value="enwiki")
@@ -388,56 +419,115 @@ class DenseRAG:
             )
 
         elif retrieval_type == 'multilingual':
-            query_filter = None
+            return None
+        return None
 
-        search_result = self.qdrant_client.query_points(
-            collection_name=self.collection_name,
-            query=embedding,
-            limit=100,
-            timeout=1200,
-            query_filter=query_filter,
-        )
-        return search_result
+    # def chat_llm(self, model_name, input_dir, retrieval_type, inference_batch_size=64, overwrite: bool = False,):
+    #     cfg = get_model_config(model_name)
+    #     output_dir = f"{retrieval_type}_predictions"
+    #     os.makedirs(output_dir, exist_ok=True)
+    #
+    #     input_files = sorted(Path(input_dir).glob("*.json"))
+    #     if not input_files:
+    #         logger.error(f"No JSON files found in {input_dir}")
+    #         return
+    #
+    #     logger.info(
+    #         f"[chat_llm] model={model_name}  type={cfg.model_type}  "
+    #         f"retrieval={retrieval_type}  batch={batch_size}  "
+    #         f"files={len(input_files)}"
+    #     )
+    #
+    #     # Load model once; release at the end.
+    #     loop = asyncio.get_event_loop()
+    #     tok, model = await loop.run_in_executor(executor, load_model, cfg)
+    #
+    #     for input_file in input_files:
+    #         if self.shutdown_requested:
+    #             logger.warning("Shutdown - skipping remaining files")
+    #             break
+    #
+    #         output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
+    #
+    #         if overwrite:
+    #             for p in (output_file, self._ckpt_path(output_file)):
+    #                 if os.path.exists(p):
+    #                     os.unlink(p)
 
-    def chat_llm(self, name):
-        batch_count = 0
-        logger.info(f"[{name}] Loading tokenizer")
-        tokenizer = AutoTokenizer.from_pretrained(name)
-        logger.info(f"[{name}] Tokenizer loaded successfully")
+        #     done_ids = self._load_inference_checkpoint(output_file)
+        #     write_mode = "a" if done_ids else "w"
+        #     logger.info(f"[{input_file.name}] → {output_file}  (mode={write_mode}, done={len(done_ids)})")
+        #
+        #     pending_items: list[dict] = []
+        #     pending_prompts: list = []
+        #     total_written = 0
+        #
+        #     async with aiofiles.open(output_file, write_mode, encoding="utf-8") as fout:
+        #
+        #         async def flush(items: list[dict], prompts: list) -> int:
+        #             if not items:
+        #                 return 0
+        #             predictions: list[str] = await loop.run_in_executor(
+        #                 executor, run_batch_sync, tok, model, cfg, prompts, inference_batch_size,
+        #             )
+        #             n = 0
+        #             for item, pred in zip(items, predictions):
+        #                 rec = {
+        #                     "id": item["id"],
+        #                     "lang": item.get("lang", ""),
+        #                     "question": item.get("question", ""),
+        #                     "prediction": pred,
+        #                     "model": model_name,
+        #                     "retrieval_type": retrieval_type,
+        #                 }
+        #                 await fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        #                 done_ids.add(str(item["id"]))
+        #                 n += 1
+        #             await fout.flush()
+        #             self._save_inference_checkpoint(output_file, done_ids)
+        #             logger.info(f"[{input_file.name}] +{n} predictions (total done: {len(done_ids)})")
+        #             return n
+        #
+        #         async for item in _stream_json_array(str(input_file), executor):
+        #             if self.shutdown_requested:
+        #                 total_written += await flush(pending_items, pending_prompts)
+        #                 logger.warning(f"Shutdown checkpoint saved at {len(done_ids)} items")
+        #                 break
+        #
+        #             if str(item.get("id", "")) in done_ids:
+        #                 continue
+        #
+        #             pending_items.append(item)
+        #             pending_prompts.append(
+        #                 build_prompt(item, retrieval_type, model_name, max_ctx)
+        #             )
+        #
+        #             if len(pending_items) >= inference_batch_size:
+        #                 total_written += await flush(pending_items, pending_prompts)
+        #                 pending_items, pending_prompts = [], []
+        #
+        #         if pending_items and not self.shutdown_requested:
+        #             total_written += await flush(pending_items, pending_prompts)
+        #
+        #     if not self.shutdown_requested:
+        #         self._delete_inference_checkpoint(output_file)
+        #         logger.info(f"[{input_file.name}] Complete — {total_written} predictions written")
+        #
+        # del model, tok
+        # gc.collect();
+        # torch.cuda.empty_cache()
+        # logger.info("[chat_llm] All files processed")
 
-        logger.info(f"[{name}] Loading pipeline")
-        pipe = pipeline(
-            "text-generation",
-            model=name,
-            tokenizer=tokenizer,
-            max_new_tokens=512,
-            return_full_text=False,
-            device_map="auto",
-        )
-        logger.info(f"[{name}] Pipeline created successfully")
-
-        chat_model = ChatHuggingFace(llm=HuggingFacePipeline(pipeline=pipe), tokenizer=tokenizer)
-        logger.info(f"[{name}] LLM loaded successfully")
-
-        input_file = ""
-
-        for item in self.read_file(input_file, skip_count=0):
-            if self.shutdown_requested:
-                break
-
-    async def main(self, skip_retrieval = False, skip_loading=False, retrieval_type="multilingual"):
+    async def main(self, model_name: str, skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
+                   span_type="english_span"):
         try:
             if skip_retrieval:
-                logger.info("Skipping retrieval. Starting inference pipelines")
-                logger.info("Starting LLM inference")
-                self.chat_llm("CohereLabs/aya-101"),
-                # self.chat_llm("google/gemma-3-27b-it"),
-                # self.chat_llm("Qwen/Qwen3-30B-A3B"),
-            elif skip_loading:
-                logger.info("Skipping data loading. Starting retrieval pipelines")
+                logger.info("Skipping retrieval — running inference only")
             else:
-                logger.info("Starting data loading")
-                await self.data_loading()
+                if not skip_loading:
+                    logger.info("Starting data loading")
+                    await self.data_loading()
+
                 logger.info("Starting retrieval pipelines")
 
                 for file_path in [
@@ -449,10 +539,20 @@ class DenseRAG:
                     await self.retrieval_pipeline(file_path, retrieval_type)
                 logger.info("Completed all the retrieval pipelines")
 
+            logger.info(f"Starting inference: model={model_name}  span={span_type}")
+            # await self.chat_llm(
+            #     model_name           = model_name,
+            #     input_dir            = f"{retrieval_type}_output",
+            #     retrieval_type       = retrieval_type,
+            #     span_type            = span_type,
+            #     inference_batch_size = 64,
+            #     overwrite            = overwrite,
+            # )
+            # logger.info("All pipelines complete")
+
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
-            raise
-
+        raise
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
@@ -477,12 +577,34 @@ if __name__ == '__main__':
         help='Specify the retrieval type'
     )
 
+    # parser.add_argument(
+    #     "--span-type", required=True,
+    #     choices=["english_span", "multilingual"],
+    #     help=(
+    #         "english_span for generating answers in English"
+    #         "multilingual for generating answers in target language"
+    #     ),
+    # )
+    #
+    # parser.add_argument(
+    #     "--model-name",
+    #     type=str,
+    #     required=True,
+    #     choices=["CohereLabs/aya-101", "google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
+    #     help="Inference model to use",
+    # )
 
     args = parser.parse_args()
 
     try:
         xor = DenseRAG()
-        asyncio.run(xor.main(skip_retrieval=args.skip_retrieval, skip_loading=args.skip_loading, retrieval_type=args.retrieval_type))
+        asyncio.run(xor.main(
+            # model_name=args.model_name,
+            skip_retrieval=args.skip_retrieval,
+            skip_loading=args.skip_loading,
+            retrieval_type=args.retrieval_type,
+            # span_type=args.span_type,
+        ))
         logger.info("All XOR tasks completed")
     except Exception as e:
         logger.error("Program crashed abruptly", exc_info=True)
