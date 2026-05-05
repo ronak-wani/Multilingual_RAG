@@ -353,9 +353,14 @@ class DenseRAG:
                 batch = []
                 if self.shutdown_requested:
                     break
-                await f.write("\n]")
 
-            logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
+            if batch:
+                first_item = await self._process_batch(batch, f, retrieval_type, first_item)
+                total_prompts += len(batch)
+
+            await f.write("\n]")
+
+        logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
 
     async def _process_batch(self, batch, f, retrieval_type, first_item):
         questions = [item['question'] for item in batch]
@@ -518,7 +523,7 @@ class DenseRAG:
         # torch.cuda.empty_cache()
         # logger.info("[chat_llm] All files processed")
 
-    async def main(self, model_name: str, skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
+    async def main(self, model_name: str = "", skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
                    span_type="english_span"):
         try:
             if skip_retrieval:
@@ -552,7 +557,7 @@ class DenseRAG:
 
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
-        raise
+            raise
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
