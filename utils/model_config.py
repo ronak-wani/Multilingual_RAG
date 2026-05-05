@@ -214,6 +214,8 @@ def _infer_seq2seq(
 
         for ids in out_ids:
             results.append(tok.decode(ids, skip_special_tokens=True).strip())
+        del enc, out_ids
+        torch.cuda.empty_cache()
 
     return results
 
@@ -274,6 +276,8 @@ def _infer_causal(
                     pass
             decoded = tok.decode(new_tokens, skip_special_tokens=True).strip()
             results.append(decoded)
+        del enc, out_ids
+        torch.cuda.empty_cache()
 
     return results
 

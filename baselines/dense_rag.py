@@ -1,6 +1,5 @@
 import argparse, signal, glob
 import os, json, logging, sys
-import time
 from pathlib import Path
 from typing import Literal
 from utils.model_config import (
@@ -41,7 +40,7 @@ executor = ThreadPoolExecutor(max_workers=os.cpu_count())
 
 
 class DenseRAG:
-    def __init__(self):
+    def __init__(self, skip_retrieval: bool = False):
         logger.info("Initializing DenseRAG")
         self.shutdown_requested = False
         signal.signal(signal.SIGTERM, self.handle_sigterm)
@@ -51,56 +50,60 @@ class DenseRAG:
             logger.info("Login Successful")
         else:
             logger.warning("No HF_TOKEN found")
+        if not skip_retrieval:
+            logger.info("Loading the embedding model")
 
-        logger.info("Loading the embedding model")
-
-        self.embed_model = SentenceTransformer(
-            "nvidia/llama-embed-nemotron-8b",
-            trust_remote_code=True,
-            model_kwargs={
-                "attn_implementation": "flash_attention_2",
-                "torch_dtype": "bfloat16"
-            },
-            tokenizer_kwargs={"padding_side": "left"},
-            device="cuda"
-        )
-
-        self.embed_model.eval()
-        for param in self.embed_model.parameters():
-            param.requires_grad = False
-        torch.set_grad_enabled(False)
-
-        logger.info("Completed loading the embedding model")
-
-        self.collection_name = "wiki_composite"
-        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
-        qdrant_port = os.getenv("QDRANT_PORT", "6333")
-        qdrant_url = f"http://{qdrant_host}:{qdrant_port}"
-
-        self.qdrant_client = QdrantClient(url=qdrant_url, timeout=1200)
-        logger.info(f"Connected to Qdrant server at {qdrant_url}")
-        self.collection_exist = self.qdrant_client.collection_exists(self.collection_name)
-        if not self.collection_exist:
-            logger.info(f"Creating new collection")
-            self.qdrant_client.create_collection(
-                collection_name=self.collection_name,
-                on_disk_payload=True,
-                vectors_config=models.VectorParams(
-                    size=4096,
-                    distance=models.Distance.COSINE,
-                    on_disk=True,
-                ),
+            self.embed_model = SentenceTransformer(
+                "nvidia/llama-embed-nemotron-8b",
+                trust_remote_code=True,
+                model_kwargs={
+                    "attn_implementation": "flash_attention_2",
+                    "torch_dtype": "bfloat16"
+                },
+                tokenizer_kwargs={"padding_side": "left"},
+                device="cuda"
             )
-            logger.info("Collection created successfully")
-        else:
-            logger.info(f"Collection already exists")
 
-        self.qdrant_client.create_payload_index(
-            collection_name=self.collection_name,
-            field_name="wiki",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        logger.info("Created payload index on 'wiki' field")
+            self.embed_model.eval()
+            for param in self.embed_model.parameters():
+                param.requires_grad = False
+            torch.set_grad_enabled(False)
+
+            logger.info("Completed loading the embedding model")
+
+            self.collection_name = "wiki_composite"
+            qdrant_host = os.getenv("QDRANT_HOST", "localhost")
+            qdrant_port = os.getenv("QDRANT_PORT", "6333")
+            qdrant_url = f"http://{qdrant_host}:{qdrant_port}"
+
+            self.qdrant_client = QdrantClient(url=qdrant_url, timeout=1200)
+            logger.info(f"Connected to Qdrant server at {qdrant_url}")
+            self.collection_exist = self.qdrant_client.collection_exists(self.collection_name)
+            if not self.collection_exist:
+                logger.info(f"Creating new collection")
+                self.qdrant_client.create_collection(
+                    collection_name=self.collection_name,
+                    on_disk_payload=True,
+                    vectors_config=models.VectorParams(
+                        size=4096,
+                        distance=models.Distance.COSINE,
+                        on_disk=True,
+                    ),
+                )
+                logger.info("Collection created successfully")
+            else:
+                logger.info(f"Collection already exists")
+
+            self.qdrant_client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="wiki",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            logger.info("Created payload index on 'wiki' field")
+        else:
+            logger.info("Skipping embedding model and Qdrant (inference only)")
+            self.embed_model = None
+            self.qdrant_client = None
 
     def handle_sigterm(self, signum, frame):
         logger.info("SIGTERM received, will stop after current batch")
@@ -273,10 +276,15 @@ class DenseRAG:
         docs_count = self.qdrant_client.count(collection_name=self.collection_name).count
         logger.info(f"Data loading completed. Total documents in collection: {docs_count}")
 
-    def count_existing_prompts(self, output_file):
+    def count_existing_prompts(self, output_file, retrieval):
         if not os.path.exists(output_file):
             return 0
         try:
+            if not retrieval:
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    count = sum(1 for line in f if line.strip())
+                logger.info(f"Found {count} existing predictions in {output_file}")
+                return count
             with open(output_file, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
                 if not content or content == '[':
@@ -319,7 +327,7 @@ class DenseRAG:
 
         output_file = f"{output_dir}/{os.path.splitext(file_path)[0]}_results.json"
 
-        skip_count = self.count_existing_prompts(output_file)
+        skip_count = self.count_existing_prompts(output_file, True)
         total_prompts = skip_count
 
         file_exists = os.path.exists(output_file) and skip_count > 0
@@ -420,11 +428,11 @@ class DenseRAG:
             try:
                 with open(path, "rb") as fh:
                     for item in ijson.items(fh, "item"):
-                        loop.call_soon_threadsafe(queue.put_nowait, item)
+                        asyncio.run_coroutine_threadsafe(queue.put(item), loop).result()
             except Exception as exc:
-                loop.call_soon_threadsafe(queue.put_nowait, exc)
+                asyncio.run_coroutine_threadsafe(queue.put(exc), loop).result()
             finally:
-                loop.call_soon_threadsafe(queue.put_nowait, StopAsyncIteration())
+                asyncio.run_coroutine_threadsafe(queue.put(StopAsyncIteration()), loop).result()
 
         fut = loop.run_in_executor(exec_, _producer)
         while True:
@@ -460,9 +468,9 @@ class DenseRAG:
                 logger.warning("Shutdown - skipping remaining files")
                 break
 
-            output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.json")
+            output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
 
-            skip_count = self.count_existing_prompts(output_file)
+            skip_count = self.count_existing_prompts(output_file, False)
             total_written = skip_count
             file_exists = os.path.exists(output_file) and skip_count > 0
             mode: Literal["a", "w"] = "a" if file_exists else "w"
@@ -475,14 +483,10 @@ class DenseRAG:
             pending_items: list[dict] = []
             pending_prompts: list = []
             items_seen = 0
-            first_item = not file_exists
 
             async with aiofiles.open(output_file, mode, encoding="utf-8") as fout:
-                if not file_exists:
-                    await fout.write("{\n")
 
                 async def flush(items: list[dict], prompts: list) -> int:
-                    nonlocal first_item
                     if not items:
                         return 0
                     predictions: list[str] = await loop.run_in_executor(
@@ -490,13 +494,16 @@ class DenseRAG:
                     )
                     n = 0
                     for item, pred in zip(items, predictions):
-                        if not first_item:
-                            await fout.write(",\n")
-                        else:
-                            first_item = False
-                        await fout.write(
-                            f'    {json.dumps(str(item["id"]))}: {json.dumps(pred, ensure_ascii=False)}'
-                        )
+                        rec = {
+                            "id": item["id"],
+                            "lang": item.get("lang", ""),
+                            "model": model_name,
+                            "span_type": span_type,
+                            "retrieval_type": retrieval_type,
+                            "prompt": prompts[n] if isinstance(prompts[n], str) else json.dumps(prompts[n], ensure_ascii=False),
+                            "prediction": pred,
+                        }
+                        await fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
                         n += 1
 
                     await fout.flush()
@@ -517,8 +524,6 @@ class DenseRAG:
                         logger.warning(
                             f"[{input_file.name}] Shutdown — saved {total_written} predictions"
                         )
-                        await fout.write("\n}")
-                        await fout.flush()
                         break
 
                     pending_items.append(item)
@@ -527,14 +532,19 @@ class DenseRAG:
                     if len(pending_items) >= inference_batch_size:
                         total_written += await flush(pending_items, pending_prompts)
                         pending_items, pending_prompts = [], []
+                        gc.collect()
+                        torch.cuda.empty_cache()
 
                 else:
                     if pending_items:
                         total_written += await flush(pending_items, pending_prompts)
-                    await fout.write("\n}")
                     await fout.flush()
+                    gc.collect()
+                    torch.cuda.empty_cache()
 
                 if not self.shutdown_requested:
+                    eval_file = output_file.replace("_predictions.jsonl", "_eval.json")
+                    self._write_eval_json(output_file, eval_file)
                     logger.info(f"[{input_file.name}] Complete — {total_written} predictions written")
 
         del model, tok
@@ -542,16 +552,16 @@ class DenseRAG:
         torch.cuda.empty_cache()
         logger.info("All files processed")
 
-    def _write_eval_json(self, predictions_json: str, eval_json: str) -> None:
-
+    def _write_eval_json(self, predictions_jsonl: str, eval_json: str) -> None:
         predictions: dict[str, str] = {}
-        with open(predictions_json, "r", encoding="utf-8") as f:
-            for rec in json.load(f):
+        with open(predictions_jsonl, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
                 predictions[str(rec["id"])] = rec["prediction"]
-
         with open(eval_json, "w", encoding="utf-8") as f:
             json.dump(predictions, f, ensure_ascii=False, indent=2)
-
         logger.info(f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)")
 
     async def main(self, model_name: str = "", skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
@@ -577,11 +587,11 @@ class DenseRAG:
 
             logger.info(f"Starting inference: model={model_name}  span={span_type}")
             await self.chat_llm(
-                model_name           = model_name,
-                input_dir            = Path(retrieval_type) / "dense_retrieval",
-                retrieval_type       = retrieval_type,
-                span_type            = span_type,
-                inference_batch_size = 64,
+                model_name=model_name,
+                input_dir=Path(retrieval_type) / "dense_retrieval",
+                retrieval_type=retrieval_type,
+                span_type=span_type,
+                inference_batch_size=64,
             )
             logger.info("All pipelines complete")
 
@@ -632,7 +642,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     try:
-        xor = DenseRAG()
+        xor = DenseRAG(skip_retrieval=args.skip_retrieval)
         asyncio.run(xor.main(
             model_name=args.model_name,
             skip_retrieval=args.skip_retrieval,
