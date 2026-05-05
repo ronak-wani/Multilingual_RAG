@@ -1,14 +1,16 @@
 import argparse, signal, glob
 import os, json, logging, sys
+import time
 from pathlib import Path
+from typing import Literal
+from utils.model_config import (
+    get_model_config,
+    load_model,
+    build_prompt,
+    run_batch_sync,
+)
 
-# from utils.model_config import (
-#     ModelConfig,
-#     get_model_config,
-#     build_prompt,
-#     QWEN_END_THINK_TOKEN_ID,
-# )
-
+import ijson
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor
 from langchain_core.documents import Document
@@ -20,8 +22,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import asyncio
 from qdrant_client import QdrantClient, models
-from transformers import AutoTokenizer, pipeline
-from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -311,7 +312,7 @@ class DenseRAG:
         logger.info(f"Finished reading {file_path}")
 
     async def retrieval_pipeline(self, file_path, retrieval_type):
-        output_dir = f"{retrieval_type}_output"
+        output_dir = Path(retrieval_type) / "dense_retrieval"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             logger.info(f"Created output directory: {output_dir}")
@@ -411,125 +412,147 @@ class DenseRAG:
         )
         return search_result
 
-    # def chat_llm(self, model_name, input_dir, retrieval_type, inference_batch_size=64):
-    #     cfg = get_model_config(model_name)
-    #     output_dir = f"{retrieval_type}_predictions"
-    #     os.makedirs(output_dir, exist_ok=True)
-    #
-    #     input_files = sorted(Path(input_dir).glob("*.json"))
-    #     if not input_files:
-    #         logger.error(f"No JSON files found in {input_dir}")
-    #         return
-    #
-    #     logger.info(
-    #         f"[chat_llm] model={model_name}  type={cfg.model_type}  "
-    #         f"retrieval={retrieval_type}  batch={batch_size}  "
-    #         f"files={len(input_files)}"
-    #     )
+    async def _stream_json_array(self, path: str, exec_: ThreadPoolExecutor):
+        loop = asyncio.get_event_loop()
+        queue: asyncio.Queue = asyncio.Queue(maxsize=256)
 
-        # # Load model once; release at the end.
-        # loop = asyncio.get_event_loop()
-        # tok, model = await loop.run_in_executor(executor, load_model, cfg)
-        #
-        # for input_file in input_files:
-        #     if self.shutdown_requested:
-        #         logger.warning("Shutdown - skipping remaining files")
-        #         break
-        #
-        #     output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
-        #
-        #     if overwrite:
-        #         for p in (output_file, self._ckpt_path(output_file)):
-        #             if os.path.exists(p):
-        #                 os.unlink(p)
-        #
-        #     done_ids = self._load_inference_checkpoint(output_file)
-        #     write_mode = "a" if done_ids else "w"
-        #     logger.info(f"[{input_file.name}] → {output_file}  (mode={write_mode}, done={len(done_ids)})")
-        #
-        #     pending_items: list[dict] = []
-        #     pending_prompts: list = []
-        #     total_written = 0
-        #
-        #     async with aiofiles.open(output_file, write_mode, encoding="utf-8") as fout:
-        #
-        #         async def flush(items: list[dict], prompts: list) -> int:
-        #             if not items:
-        #                 return 0
-        #             predictions: list[str] = await loop.run_in_executor(
-        #                 executor, run_batch_sync, tok, model, cfg, prompts, inference_batch_size,
-        #             )
-        #             n = 0
-        #             for item, pred in zip(items, predictions):
-        #                 rec = {
-        #                     "id": item["id"],
-        #                     "lang": item.get("lang", ""),
-        #                     "question": item.get("question", ""),
-        #                     "prediction": pred,
-        #                     "model": model_name,
-        #                     "retrieval_type": retrieval_type,
-        #                 }
-        #                 await fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        #                 done_ids.add(str(item["id"]))
-        #                 n += 1
-        #             await fout.flush()
-        #             self._save_inference_checkpoint(output_file, done_ids)
-        #             logger.info(f"[{input_file.name}] +{n} predictions (total done: {len(done_ids)})")
-        #             return n
-        #
-        #         async for item in _stream_json_array(str(input_file), executor):
-        #             if self.shutdown_requested:
-        #                 total_written += await flush(pending_items, pending_prompts)
-        #                 logger.warning(f"Shutdown checkpoint saved at {len(done_ids)} items")
-        #                 break
-        #
-        #             if str(item.get("id", "")) in done_ids:
-        #                 continue
-        #
-        #             pending_items.append(item)
-        #             pending_prompts.append(
-        #                 build_prompt(item, retrieval_type, model_name, max_ctx)
-        #             )
-        #
-        #             if len(pending_items) >= inference_batch_size:
-        #                 total_written += await flush(pending_items, pending_prompts)
-        #                 pending_items, pending_prompts = [], []
-        #
-        #         if pending_items and not self.shutdown_requested:
-        #             total_written += await flush(pending_items, pending_prompts)
-        #
-        #     if not self.shutdown_requested:
-        #         self._delete_inference_checkpoint(output_file)
-        #         logger.info(f"[{input_file.name}] Complete — {total_written} predictions written")
-        #
-        # del model, tok
-        # gc.collect();
-        # torch.cuda.empty_cache()
-        # logger.info("[chat_llm] All files processed")
-        # batch_count = 0
-        # logger.info(f"[{name}] Loading tokenizer")
-        # tokenizer = AutoTokenizer.from_pretrained(name)
-        # logger.info(f"[{name}] Tokenizer loaded successfully")
-        #
-        # logger.info(f"[{name}] Loading pipeline")
-        # pipe = pipeline(
-        #     "text-generation",
-        #     model=name,
-        #     tokenizer=tokenizer,
-        #     max_new_tokens=512,
-        #     return_full_text=False,
-        #     device_map="auto",
-        # )
-        # logger.info(f"[{name}] Pipeline created successfully")
-        #
-        # chat_model = ChatHuggingFace(llm=HuggingFacePipeline(pipeline=pipe), tokenizer=tokenizer)
-        # logger.info(f"[{name}] LLM loaded successfully")
-        #
-        # input_file = ""
-        #
-        # for item in self.read_file(input_file, skip_count=0):
-        #     if self.shutdown_requested:
-        #         break
+        def _producer():
+            try:
+                with open(path, "rb") as fh:
+                    for item in ijson.items(fh, "item"):
+                        loop.call_soon_threadsafe(queue.put_nowait, item)
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, StopAsyncIteration())
+
+        fut = loop.run_in_executor(exec_, _producer)
+        while True:
+            item = await queue.get()
+            if isinstance(item, StopAsyncIteration):
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
+        await fut
+
+    async def chat_llm(self, model_name, input_dir, retrieval_type, span_type, inference_batch_size=64):
+        cfg = get_model_config(model_name)
+        output_dir = Path(retrieval_type) / f"{span_type}_llm_predictions" / model_name.replace("/", "_")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        input_files = sorted(Path(input_dir).glob("*.json"))
+        if not input_files:
+            logger.error(f"No JSON files found in {input_dir}")
+            return
+
+        logger.info(
+            f"LLM model={model_name}  type={cfg.model_type}  "
+            f"span_type={span_type}  batch={inference_batch_size}  "
+            f"files={len(input_files)}"
+        )
+
+        loop = asyncio.get_event_loop()
+        tok, model = await loop.run_in_executor(executor, load_model, cfg)
+
+        for input_file in input_files:
+            if self.shutdown_requested:
+                logger.warning("Shutdown - skipping remaining files")
+                break
+
+            output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.json")
+
+            skip_count = self.count_existing_prompts(output_file)
+            total_written = skip_count
+            file_exists = os.path.exists(output_file) and skip_count > 0
+            mode: Literal["a", "w"] = "a" if file_exists else "w"
+
+            logger.info(
+                f"[{input_file.name}] → {output_file}  "
+                f"(mode={mode}, already_done={skip_count})"
+            )
+
+            pending_items: list[dict] = []
+            pending_prompts: list = []
+            items_seen = 0
+            first_item = not file_exists
+
+            async with aiofiles.open(output_file, mode, encoding="utf-8") as fout:
+                if not file_exists:
+                    await fout.write("{\n")
+
+                async def flush(items: list[dict], prompts: list) -> int:
+                    nonlocal first_item
+                    if not items:
+                        return 0
+                    predictions: list[str] = await loop.run_in_executor(
+                        executor, run_batch_sync, tok, model, cfg, prompts, inference_batch_size,
+                    )
+                    n = 0
+                    for item, pred in zip(items, predictions):
+                        if not first_item:
+                            await fout.write(",\n")
+                        else:
+                            first_item = False
+                        await fout.write(
+                            f'    {json.dumps(str(item["id"]))}: {json.dumps(pred, ensure_ascii=False)}'
+                        )
+                        n += 1
+
+                    await fout.flush()
+                    logger.info(
+                        f"[{input_file.name}] +{n} predictions  "
+                        f"(total: {total_written + n})"
+                    )
+                    return n
+
+                async for item in self._stream_json_array(str(input_file), executor):
+                    if items_seen < skip_count:
+                        items_seen += 1
+                        continue
+                    items_seen += 1
+
+                    if self.shutdown_requested:
+                        total_written += await flush(pending_items, pending_prompts)
+                        logger.warning(
+                            f"[{input_file.name}] Shutdown — saved {total_written} predictions"
+                        )
+                        await fout.write("\n}")
+                        await fout.flush()
+                        break
+
+                    pending_items.append(item)
+                    pending_prompts.append(build_prompt(item, span_type, model_name))
+
+                    if len(pending_items) >= inference_batch_size:
+                        total_written += await flush(pending_items, pending_prompts)
+                        pending_items, pending_prompts = [], []
+
+                else:
+                    if pending_items:
+                        total_written += await flush(pending_items, pending_prompts)
+                    await fout.write("\n}")
+                    await fout.flush()
+
+                if not self.shutdown_requested:
+                    logger.info(f"[{input_file.name}] Complete — {total_written} predictions written")
+
+        del model, tok
+        gc.collect()
+        torch.cuda.empty_cache()
+        logger.info("All files processed")
+
+    def _write_eval_json(self, predictions_json: str, eval_json: str) -> None:
+
+        predictions: dict[str, str] = {}
+        with open(predictions_json, "r", encoding="utf-8") as f:
+            for rec in json.load(f):
+                predictions[str(rec["id"])] = rec["prediction"]
+
+        with open(eval_json, "w", encoding="utf-8") as f:
+            json.dump(predictions, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)")
 
     async def main(self, model_name: str = "", skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
                    span_type="english_span"):
@@ -553,15 +576,14 @@ class DenseRAG:
                 logger.info("Completed all the retrieval pipelines")
 
             logger.info(f"Starting inference: model={model_name}  span={span_type}")
-            # await self.chat_llm(
-            #     model_name           = model_name,
-            #     input_dir            = f"{retrieval_type}_output",
-            #     retrieval_type       = retrieval_type,
-            #     span_type            = span_type,
-            #     inference_batch_size = 64,
-            #     overwrite            = overwrite,
-            # )
-            # logger.info("All pipelines complete")
+            await self.chat_llm(
+                model_name           = model_name,
+                input_dir            = Path(retrieval_type) / "dense_retrieval",
+                retrieval_type       = retrieval_type,
+                span_type            = span_type,
+                inference_batch_size = 64,
+            )
+            logger.info("All pipelines complete")
 
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
@@ -590,33 +612,33 @@ if __name__ == '__main__':
         help='Specify the retrieval type'
     )
 
-    # parser.add_argument(
-    #     "--span-type", required=True,
-    #     choices=["english_span", "multilingual"],
-    #     help=(
-    #         "english_span for generating answers in English"
-    #         "multilingual for generating answers in target language"
-    #     ),
-    # )
-    #
-    # parser.add_argument(
-    #     "--model-name",
-    #     type=str,
-    #     required=True,
-    #     choices=["CohereLabs/aya-101", "google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
-    #     help="Inference model to use",
-    # )
+    parser.add_argument(
+        "--span-type", required=True,
+        choices=["xor_english_span", "xor_full"],
+        help=(
+            "xor_english_span for generating answers in English"
+            "xor_full for generating answers in target language"
+        ),
+    )
+
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        required=True,
+        choices=["CohereLabs/aya-101", "google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
+        help="Inference model to use",
+    )
 
     args = parser.parse_args()
 
     try:
         xor = DenseRAG()
         asyncio.run(xor.main(
-            # model_name=args.model_name,
+            model_name=args.model_name,
             skip_retrieval=args.skip_retrieval,
             skip_loading=args.skip_loading,
             retrieval_type=args.retrieval_type,
-            # span_type=args.span_type,
+            span_type=args.span_type,
         ))
         logger.info("All XOR tasks completed")
     except Exception as e:
