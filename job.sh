@@ -88,7 +88,7 @@ trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit
 MODEL="CohereLabs/aya-101"
 
 echo "Running monolingual + xor_full"
-$VENV_PYTHON baselines/dense_rag.py \
+$VENV_PYTHON -m baselines.dense_rag.py \
     --skip-retrieval \
     --retrieval-type monolingual \
     --span-type xor_full \
