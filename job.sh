@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J CIMCL_RAG
+#SBATCH -J Cohere_XOR_FULL
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -87,14 +87,6 @@ trap 'echo "SIGTERM received, requeueing."; scontrol requeue $SLURM_JOB_ID; exit
 
 MODEL="CohereLabs/aya-101"
 
-echo "Running crosslingual + xor_english_span"
-$VENV_PYTHON baselines/dense_rag.py \
-    --skip-retrieval \
-    --retrieval-type crosslingual \
-    --span-type xor_english_span \
-    --model-name "$MODEL"
-echo "Completed crosslingual + xor_english_span"
-
 echo "Running monolingual + xor_full"
 $VENV_PYTHON baselines/dense_rag.py \
     --skip-retrieval \
@@ -103,21 +95,29 @@ $VENV_PYTHON baselines/dense_rag.py \
     --model-name "$MODEL"
 echo "Completed monolingual + xor_full"
 
-echo "Running multilingual + xor_english_span"
-$VENV_PYTHON baselines/dense_rag.py \
-    --skip-retrieval \
-    --retrieval-type multilingual \
-    --span-type xor_english_span \
-    --model-name "$MODEL"
-echo "Completed multilingual + xor_english_span"
+# echo "Running crosslingual + xor_english_span"
+# $VENV_PYTHON baselines/dense_rag.py \
+#     --skip-retrieval \
+#     --retrieval-type crosslingual \
+#     --span-type xor_english_span \
+#     --model-name "$MODEL"
+# echo "Completed crosslingual + xor_english_span"
 
-echo "Running multilingual + xor_full"
-$VENV_PYTHON baselines/dense_rag.py \
-    --skip-retrieval \
-    --retrieval-type multilingual \
-    --span-type xor_full \
-    --model-name "$MODEL"
-echo "Completed multilingual + xor_full"
+# echo "Running multilingual + xor_english_span"
+# $VENV_PYTHON baselines/dense_rag.py \
+#     --skip-retrieval \
+#     --retrieval-type multilingual \
+#     --span-type xor_english_span \
+#     --model-name "$MODEL"
+# echo "Completed multilingual + xor_english_span"
+
+# echo "Running multilingual + xor_full"
+# $VENV_PYTHON baselines/dense_rag.py \
+#     --skip-retrieval \
+#     --retrieval-type multilingual \
+#     --span-type xor_full \
+#     --model-name "$MODEL"
+# echo "Completed multilingual + xor_full"
 #
 #echo "Stopping Qdrant"
 #kill "$QDRANT_PID" 2>/dev/null || true
