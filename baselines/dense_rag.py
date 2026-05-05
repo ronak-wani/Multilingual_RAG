@@ -2,12 +2,12 @@ import argparse, signal, glob
 import os, json, logging, sys
 from pathlib import Path
 
-from utils.model_config import (
-    ModelConfig,
-    get_model_config,
-    build_prompt,
-    QWEN_END_THINK_TOKEN_ID,
-)
+# from utils.model_config import (
+#     ModelConfig,
+#     get_model_config,
+#     build_prompt,
+#     QWEN_END_THINK_TOKEN_ID,
+# )
 
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor
@@ -310,7 +310,7 @@ class DenseRAG:
 
         logger.info(f"Finished reading {file_path}")
 
-    async def retrieval_pipeline(self, file_path, retrieval_type, batch_size=64):
+    async def retrieval_pipeline(self, file_path, retrieval_type):
         output_dir = f"{retrieval_type}_output"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -334,81 +334,57 @@ class DenseRAG:
             else:
                 first_item = False
 
-            batch = []
-
             for item in self.read_file(file_path, skip_count):
                 if self.shutdown_requested:
                     logger.info(f"[{file_path}] Shutdown requested at prompt {total_prompts + 1}, stopping gracefully")
                     break
 
-                batch.append(item)
+                total_prompts += 1
 
-                if len(batch) < batch_size:
-                    continue
+                if total_prompts % 100 == 1:
+                    logger.info(f"[{file_path}] Processing prompt {total_prompts}")
 
-                first_item = await self._process_batch(batch, f, retrieval_type, first_item)
-                total_prompts += len(batch)
-                if total_prompts % 500 == 0:
-                    logger.info(f"[{file_path}] Processed {total_prompts} prompts")
-                batch = []
-                if self.shutdown_requested:
-                    break
+                question = item['question']
+                query_embedding_raw = self.embed_model.encode_query([question])
+                query_embedding = query_embedding_raw[0].tolist()
+                search_result = self.retrieve(query_embedding, retrieval_type, item['lang'])
 
-            if batch:
-                first_item = await self._process_batch(batch, f, retrieval_type, first_item)
-                total_prompts += len(batch)
+                retrieved_context = [
+                    point.payload["text"]
+                    for point in search_result.points
+                ]
+                prompt = {
+                    "id": item['id'],
+                    "lang": item['lang'],
+                    "question": item['question'],
+                    "ctxs": retrieved_context,
+                }
+                if not first_item:
+                    await f.write(",\n")
+                else:
+                    first_item = False
+
+                json_str = json.dumps(prompt, ensure_ascii=False, indent=4)
+                await f.write(json_str)
+
+                if total_prompts == 1 or (total_prompts == skip_count + 1 and skip_count > 0):
+                    logger.info(f"Sample Prompt: {prompt}")
+
+                await f.flush()
 
             await f.write("\n]")
+            await f.flush()
 
-        logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
+        if self.shutdown_requested:
+            logger.info(
+                f"[{file_path}] Graceful shutdown: Saved {total_prompts - skip_count} new prompts (total: {total_prompts})")
+        else:
+            logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
 
-    async def _process_batch(self, batch, f, retrieval_type, first_item):
-        questions = [item['question'] for item in batch]
-
-        query_embeddings_raw = self.embed_model.encode_query(
-            questions,
-            batch_size=64,
-            show_progress_bar=False,
-            convert_to_tensor=False,
-            device='cuda',
-        )
-        embeddings_list = [query_embeddings_raw[i].tolist() for i in range(len(batch))]
-        del query_embeddings_raw
-        torch.cuda.empty_cache()
-
-        requests = [
-            models.QueryRequest(
-                query=embedding,
-                limit=100,
-                filter=self._build_filter(retrieval_type, item['lang']),
-            )
-            for embedding, item in zip(embeddings_list, batch)
-        ]
-
-        batch_results = self.qdrant_client.query_batch_points(
-            collection_name=self.collection_name,
-            requests=requests,
-            timeout=1200,
-        )
-        for item, result in zip(batch, batch_results):
-            prompt = {
-                "id": item['id'],
-                "lang": item['lang'],
-                "question": item['question'],
-                "ctxs": [point.payload["text"] for point in result.points],
-            }
-            if not first_item:
-                await f.write(",\n")
-            else:
-                first_item = False
-            await f.write(json.dumps(prompt, ensure_ascii=False, indent=4))
-
-        await f.flush()
-        return first_item
-
-    def _build_filter(self, retrieval_type, lang):
+    def retrieve(self, embedding, retrieval_type, lang):
+        query_filter = None
         if retrieval_type == 'monolingual':
-            return models.Filter(
+            query_filter = models.Filter(
                 must=[models.FieldCondition(
                     key="wiki",
                     match=models.MatchValue(value=f"{lang}wiki")
@@ -416,7 +392,7 @@ class DenseRAG:
             )
 
         elif retrieval_type == 'crosslingual':
-            return models.Filter(
+            query_filter = models.Filter(
                 must=[models.FieldCondition(
                     key="wiki",
                     match=models.MatchValue(value="enwiki")
@@ -424,10 +400,18 @@ class DenseRAG:
             )
 
         elif retrieval_type == 'multilingual':
-            return None
-        return None
+            query_filter = None
 
-    # def chat_llm(self, model_name, input_dir, retrieval_type, inference_batch_size=64, overwrite: bool = False,):
+        search_result = self.qdrant_client.query_points(
+            collection_name=self.collection_name,
+            query=embedding,
+            limit=100,
+            timeout=1200,
+            query_filter=query_filter,
+        )
+        return search_result
+
+    # def chat_llm(self, model_name, input_dir, retrieval_type, inference_batch_size=64):
     #     cfg = get_model_config(model_name)
     #     output_dir = f"{retrieval_type}_predictions"
     #     os.makedirs(output_dir, exist_ok=True)
@@ -442,23 +426,23 @@ class DenseRAG:
     #         f"retrieval={retrieval_type}  batch={batch_size}  "
     #         f"files={len(input_files)}"
     #     )
-    #
-    #     # Load model once; release at the end.
-    #     loop = asyncio.get_event_loop()
-    #     tok, model = await loop.run_in_executor(executor, load_model, cfg)
-    #
-    #     for input_file in input_files:
-    #         if self.shutdown_requested:
-    #             logger.warning("Shutdown - skipping remaining files")
-    #             break
-    #
-    #         output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
-    #
-    #         if overwrite:
-    #             for p in (output_file, self._ckpt_path(output_file)):
-    #                 if os.path.exists(p):
-    #                     os.unlink(p)
 
+        # # Load model once; release at the end.
+        # loop = asyncio.get_event_loop()
+        # tok, model = await loop.run_in_executor(executor, load_model, cfg)
+        #
+        # for input_file in input_files:
+        #     if self.shutdown_requested:
+        #         logger.warning("Shutdown - skipping remaining files")
+        #         break
+        #
+        #     output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
+        #
+        #     if overwrite:
+        #         for p in (output_file, self._ckpt_path(output_file)):
+        #             if os.path.exists(p):
+        #                 os.unlink(p)
+        #
         #     done_ids = self._load_inference_checkpoint(output_file)
         #     write_mode = "a" if done_ids else "w"
         #     logger.info(f"[{input_file.name}] → {output_file}  (mode={write_mode}, done={len(done_ids)})")
@@ -522,6 +506,30 @@ class DenseRAG:
         # gc.collect();
         # torch.cuda.empty_cache()
         # logger.info("[chat_llm] All files processed")
+        # batch_count = 0
+        # logger.info(f"[{name}] Loading tokenizer")
+        # tokenizer = AutoTokenizer.from_pretrained(name)
+        # logger.info(f"[{name}] Tokenizer loaded successfully")
+        #
+        # logger.info(f"[{name}] Loading pipeline")
+        # pipe = pipeline(
+        #     "text-generation",
+        #     model=name,
+        #     tokenizer=tokenizer,
+        #     max_new_tokens=512,
+        #     return_full_text=False,
+        #     device_map="auto",
+        # )
+        # logger.info(f"[{name}] Pipeline created successfully")
+        #
+        # chat_model = ChatHuggingFace(llm=HuggingFacePipeline(pipeline=pipe), tokenizer=tokenizer)
+        # logger.info(f"[{name}] LLM loaded successfully")
+        #
+        # input_file = ""
+        #
+        # for item in self.read_file(input_file, skip_count=0):
+        #     if self.shutdown_requested:
+        #         break
 
     async def main(self, model_name: str = "", skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
                    span_type="english_span"):
