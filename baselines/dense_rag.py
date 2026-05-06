@@ -443,7 +443,7 @@ class DenseRAG:
             yield item
         await fut
 
-    async def chat_llm(self, model_name, input_dir, retrieval_type, span_type, inference_batch_size=64):
+    async def chat_llm(self, model_name, input_dir, retrieval_type, span_type, inference_batch_size=8):
         cfg = get_model_config(model_name)
         output_dir = Path(retrieval_type) / f"{span_type}_llm_predictions" / model_name.replace("/", "_")
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -590,7 +590,7 @@ class DenseRAG:
                 input_dir=Path(retrieval_type) / "dense_retrieval",
                 retrieval_type=retrieval_type,
                 span_type=span_type,
-                inference_batch_size=64,
+                inference_batch_size=8,
             )
             logger.info("All pipelines complete")
 
