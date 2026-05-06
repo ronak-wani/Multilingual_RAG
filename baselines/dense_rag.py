@@ -8,7 +8,6 @@ from utils.model_config import (
     build_prompt,
     run_batch_sync,
 )
-
 import ijson
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor

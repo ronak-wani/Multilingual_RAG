@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Any
-from prompts import FEW_SHOT_EN, _FEW_SHOT_LANG, _CTX_HEADER
+from .prompts import FEW_SHOT_EN, _FEW_SHOT_LANG, _CTX_HEADER
 import torch, logging, sys
 from transformers import AutoTokenizer, AutoProcessor, AutoModelForSeq2SeqLM, Gemma3ForConditionalGeneration, AutoModelForCausalLM
 
