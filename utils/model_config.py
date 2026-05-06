@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Any
-from .prompts import FEW_SHOT_EN, _FEW_SHOT_LANG, _CTX_HEADER
+from .prompts import FEW_SHOT_EN, _FEW_SHOT_LANG
 import torch, logging, sys
 from transformers import AutoTokenizer, AutoProcessor, AutoModelForSeq2SeqLM, Gemma3ForConditionalGeneration, AutoModelForCausalLM
 
@@ -141,13 +141,13 @@ def build_raw_prompt(
     question = item.get("question", "")
     ctxs = item.get("ctxs", [])
 
-    ctx_block = ""
-    if ctxs:
-        body      = "\n\n".join(f"[{i+1}] {c.strip()}" for i, c in enumerate(ctxs) if c.strip())
-        ctx_block = _CTX_HEADER.format(context=body)
+    context_body = (
+        "\n\n".join(f"[{i+1}] {c.strip()}" for i, c in enumerate(ctxs) if c.strip())
+        if ctxs else ""
+    )
 
-    return ctx_block + _select_few_shot(lang, span_type).format(question=question)
-
+    template = _select_few_shot(lang, span_type)
+    return template.format(context=context_body, question=question)
 
 def build_chat_messages(
     item: dict,

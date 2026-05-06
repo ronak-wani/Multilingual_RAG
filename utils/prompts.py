@@ -1,6 +1,5 @@
-_CTX_HEADER = "Use the following context to help answer the question.\n\nCONTEXT:\n{context}\n\n"
-
 FEW_SHOT_EN = (
+    "Use the following context to help answer the question.\n\nCONTEXT:\n{context}\n\n"
     "Answer with the most concise factual response possible — a short phrase "
     "or a few words only. No sentences, no explanations. "
     "Give your response in English regardless of the language of the question.\n"
@@ -19,6 +18,7 @@ FEW_SHOT_EN = (
 
 _FEW_SHOT_LANG: dict[str, str] = {
     "ar": (
+        "استخدم السياق التالي للمساعدة في الإجابة على السؤال.\n\nالسياق:\n{context}\n\n"
         "أجب بأقصر إجابة واقعية ممكنة — عبارة قصيرة أو كلمات قليلة فقط. "
         "لا جمل، لا شرح. أعطِ إجابتك باللغة العربية.\n"
         "Q: متى بدأت الحرب العالمية الثانية وانتهت؟\n"
@@ -33,6 +33,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "bn": (
+        "নিচের প্রসঙ্গটি ব্যবহার করে প্রশ্নের উত্তর দিন।\n\nপ্রসঙ্গ:\n{context}\n\n"
         "যতটা সম্ভব সংক্ষিপ্ত তথ্যভিত্তিক উত্তর দিন — একটি ছোট বাক্যাংশ বা কয়েকটি শব্দ। "
         "কোনো বাক্য বা ব্যাখ্যা নয়। বাংলায় উত্তর দিন।\n"
         "Q: দ্বিতীয় বিশ্বযুদ্ধ কখন শুরু ও শেষ হয়েছিল?\n"
@@ -47,6 +48,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "fi": (
+        "Käytä seuraavaa kontekstia apuna vastaamisessa.\n\nKONTEKSTI:\n{context}\n\n"
         "Vastaa mahdollisimman lyhyesti ja ytimekkäästi — lyhyt lauseke tai muutama sana riittää. "
         "Ei kokonaisia lauseita, ei selityksiä. Vastaa suomeksi.\n"
         "Q: Milloin toinen maailmansota alkoi ja päättyi?\n"
@@ -61,6 +63,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "ja": (
+        "以下のコンテキストを参考にして質問に答えてください。\n\nコンテキスト:\n{context}\n\n"
         "できるだけ簡潔な事実に基づく回答をしてください — 短いフレーズまたは数語のみ。"
         "文章や説明は不要です。日本語で回答してください。\n"
         "Q: 第二次世界大戦はいつ始まり、いつ終わりましたか？\n"
@@ -75,6 +78,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "ko": (
+        "다음 맥락을 참고하여 질문에 답하세요.\n\n맥락:\n{context}\n\n"
         "가능한 한 간결하고 사실에 근거한 답변을 해주세요 — 짧은 구절이나 몇 단어만으로. "
         "문장이나 설명은 필요 없습니다. 한국어로 답변해 주세요.\n"
         "Q: 제2차 세계대전은 언제 시작되고 끝났나요?\n"
@@ -89,6 +93,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "ru": (
+        "Используйте следующий контекст для ответа на вопрос.\n\nКОНТЕКСТ:\n{context}\n\n"
         "Отвечайте максимально кратко и по существу — короткой фразой или несколькими словами. "
         "Никаких предложений, никаких объяснений. Отвечайте на русском языке.\n"
         "Q: Когда началась и закончилась Вторая мировая война?\n"
@@ -103,6 +108,7 @@ _FEW_SHOT_LANG: dict[str, str] = {
         "A:"
     ),
     "te": (
+        "క్రింది సందర్భాన్ని ఉపయోగించి ప్రశ్నకు సమాధానం ఇవ్వండి.\n\nసందర్భం:\n{context}\n\n"
         "వీలైనంత సంక్షిప్తంగా వాస్తవ ఆధారిత సమాధానం ఇవ్వండి — ఒక చిన్న పదబంధం లేదా కొన్ని పదాలు మాత్రమే. "
         "వాక్యాలు వద్దు, వివరణలు వద్దు. తెలుగులో సమాధానం ఇవ్వండి.\n"
         "Q: రెండవ ప్రపంచ యుద్ధం ఎప్పుడు ప్రారంభమై ముగిసింది?\n"
