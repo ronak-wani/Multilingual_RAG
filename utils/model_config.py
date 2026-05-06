@@ -69,7 +69,7 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         system_prompt=(
             "You are a concise multilingual question-answering assistant. "
             "Answer with the shortest possible factual response — "
-            "a phrase or a few words only. No sentences, no explanations. /no_think"
+            "a phrase or a few words only. No sentences, no explanations."
         ),
         enable_thinking=False,
         strip_thinking=True,
@@ -252,7 +252,7 @@ def _infer_causal(
             truncation=True,
             max_length=2048,
             padding_side="left",
-        ).to(model.device, dtype=torch.bfloat16)
+        ).to(model.device)
 
         prompt_len = enc["input_ids"].shape[1]
 
