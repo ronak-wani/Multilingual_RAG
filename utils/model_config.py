@@ -246,7 +246,7 @@ def _infer_causal(
         ]
 
         enc = tok(
-            rendered,
+            text=rendered,
             return_tensors="pt",
             padding=True,
             truncation=True,
