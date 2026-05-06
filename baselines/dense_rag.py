@@ -563,7 +563,7 @@ class DenseRAG:
             json.dump(predictions, f, ensure_ascii=False, indent=2)
         logger.info(f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)")
 
-    async def main(self, model_name: str = "", skip_retrieval=False, skip_loading=False, retrieval_type="multilingual",
+    async def main(self, model_name: str = "", skip_loading=False, skip_retrieval=False, only_retrieval=False, retrieval_type="multilingual",
                    span_type="english_span"):
         try:
             if skip_retrieval:
@@ -583,16 +583,16 @@ class DenseRAG:
                 ]:
                     await self.retrieval_pipeline(file_path, retrieval_type)
                 logger.info("Completed all the retrieval pipelines")
-
-            logger.info(f"Starting inference: model={model_name}  span={span_type}")
-            await self.chat_llm(
-                model_name=model_name,
-                input_dir=Path(retrieval_type) / "dense_retrieval",
-                retrieval_type=retrieval_type,
-                span_type=span_type,
-                inference_batch_size=8,
-            )
-            logger.info("All pipelines complete")
+            if not only_retrieval:
+                logger.info(f"Starting inference: model={model_name}  span={span_type}")
+                await self.chat_llm(
+                    model_name=model_name,
+                    input_dir=Path(retrieval_type) / "dense_retrieval",
+                    retrieval_type=retrieval_type,
+                    span_type=span_type,
+                    inference_batch_size=8,
+                )
+                logger.info("All pipelines complete")
 
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
@@ -602,15 +602,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
 
     parser.add_argument(
+        '--skip-loading',
+        action='store_true',
+        help='Skip data loading and only run retrieval/inference pipelines'
+    )
+
+    parser.add_argument(
         '--skip-retrieval',
         action='store_true',
         help='Skip retrieval and only run inference pipelines'
     )
 
     parser.add_argument(
-        '--skip-loading',
+        '--only-retrieval',
         action='store_true',
-        help='Skip data loading and only run retrieval/inference pipelines'
+        help='Do only retrieval and no inference pipelines'
     )
 
     parser.add_argument(
@@ -622,7 +628,9 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        "--span-type", required=True,
+        "--span-type",
+        type=str,
+        default=None,
         choices=["xor_english_span", "xor_full"],
         help=(
             "xor_english_span for generating answers in English"
@@ -633,19 +641,26 @@ if __name__ == '__main__':
     parser.add_argument(
         "--model-name",
         type=str,
-        required=True,
+        default=None,
         choices=["CohereLabs/aya-101", "google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
         help="Inference model to use",
     )
 
     args = parser.parse_args()
 
+    if not args.only_retrieval:
+        if not args.model_name:
+            parser.error("--model-name is required unless --only-retrieval is set")
+        if not args.span_type:
+            parser.error("--span-type is required unless --only-retrieval is set")
+
     try:
         xor = DenseRAG(skip_retrieval=args.skip_retrieval)
         asyncio.run(xor.main(
             model_name=args.model_name,
-            skip_retrieval=args.skip_retrieval,
             skip_loading=args.skip_loading,
+            only_retrieval=args.only_retrieval,
+            skip_retrieval=args.skip_retrieval,
             retrieval_type=args.retrieval_type,
             span_type=args.span_type,
         ))
