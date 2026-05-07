@@ -9,6 +9,7 @@ from utils.model_config import (
     run_batch_sync,
 )
 import ijson
+
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 from concurrent.futures import ThreadPoolExecutor
 from langchain_core.documents import Document
@@ -20,7 +21,6 @@ from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import asyncio
 from qdrant_client import QdrantClient, models
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,12 +93,15 @@ class DenseRAG:
             else:
                 logger.info(f"Collection already exists")
 
-            self.qdrant_client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="wiki",
-                field_schema=models.PayloadSchemaType.KEYWORD,
-            )
-            logger.info("Created payload index on 'wiki' field")
+            try:
+                self.qdrant_client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="wiki",
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                )
+                logger.info("Created payload index on 'wiki' field")
+            except Exception as e:
+                logger.info(f"Payload index already exists or creation skipped: {e}")
         else:
             logger.info("Skipping embedding model and Qdrant (inference only)")
             self.embed_model = None
@@ -499,7 +502,8 @@ class DenseRAG:
                             "model": model_name,
                             "span_type": span_type,
                             "retrieval_type": retrieval_type,
-                            "prompt": prompts[n] if isinstance(prompts[n], str) else json.dumps(prompts[n], ensure_ascii=False),
+                            "prompt": prompts[n] if isinstance(prompts[n], str) else json.dumps(prompts[n],
+                                                                                                ensure_ascii=False),
                             "prediction": pred,
                         }
                         await fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -563,7 +567,8 @@ class DenseRAG:
             json.dump(predictions, f, ensure_ascii=False, indent=2)
         logger.info(f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)")
 
-    async def main(self, model_name: str = "", skip_loading=False, skip_retrieval=False, only_retrieval=False, retrieval_type="multilingual",
+    async def main(self, model_name: str = "", skip_loading=False, skip_retrieval=False, only_retrieval=False,
+                   retrieval_type="multilingual",
                    span_type="english_span"):
         try:
             if skip_retrieval:
@@ -597,6 +602,7 @@ class DenseRAG:
         except Exception as e:
             logger.error("Pipeline failed with exception", exc_info=True)
             raise
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
