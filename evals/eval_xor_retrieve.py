@@ -172,9 +172,13 @@ def main():
     parser.add_argument(
         "--use-translated",
         required=True,
-        choices=["true", "false"],
+        choices=["true", "false", "both"],
         type=str.lower,
-        help="Use answers_translated field (true) or answers field (false).",
+        help=(
+            "true  = use answers_translated only\n"
+            "false = use answers only\n"
+            "both  = hit if answer found in either field"
+        ),
     )
     args = parser.parse_args()
 
@@ -183,10 +187,17 @@ def main():
     input_data  = read_jsonlines(args.data_file)
     if args.use_translated == "true":
         qid2answers = {item["id"]: item["answers_translated"] for item in input_data}
-    else:
+    elif args.use_translated == "false":
         qid2answers = {item["id"]: item["answers"] for item in input_data}
+    elif args.use_translated == "both":
+        qid2answers = {
+            item["id"]: list(dict.fromkeys(
+                item["answers"] + item.get("answers_translated", [])
+            ))
+            for item in input_data
+        }
 
-    lang_order = ["ar", "bn", "en", "fi", "ja", "ko", "ru", "te"]
+    lang_order = ["ar", "bn", "fi", "ja", "ko", "ru", "te"]
 
     for topk in [2, 5]:
         print(f"Evaluating R@{topk}kt  (max {topk*1000} tokens/chars)")
@@ -196,7 +207,6 @@ def main():
 
         for lang in lang_order:
             if lang not in results:
-                print(f"{lang}: no examples found")
                 continue
             count = results[lang]["count"]
             score = results[lang]["hit"] / count * 100
