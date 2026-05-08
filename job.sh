@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J CIMCL_RAG
+#SBATCH -J CrossLingual
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -66,13 +66,13 @@ trap '
 # PID=$!
 # wait $PID
 #
-$VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type multilingual &
-PID=$!
-wait $PID
-
-# $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type crosslingual &
+# $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type multilingual &
 # PID=$!
 # wait $PID
+
+$VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type crosslingual &
+PID=$!
+wait $PID
 
 # $VENV_PYTHON baselines/translate.py \
 #     xor_dev_retrieve_eng_span_v1_1.jsonl \

@@ -581,8 +581,8 @@ class DenseRAG:
                 logger.info("Starting retrieval pipelines")
 
                 for file_path in [
-                    "xor_dev_retrieve_eng_span_v1_1.jsonl",
-                    "xor_train_retrieve_eng_span.jsonl",
+                    # "xor_dev_retrieve_eng_span_v1_1.jsonl",
+                    # "xor_train_retrieve_eng_span.jsonl",
                     "xor_train_full.jsonl",
                     "xor_dev_full_v1_1.jsonl",
                 ]:
