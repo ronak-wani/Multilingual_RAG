@@ -345,6 +345,8 @@ class DenseRAG:
             else:
                 first_item = False
 
+            new_items_written = 0
+
             for item in self.read_file(file_path, skip_count):
                 if self.shutdown_requested:
                     logger.info(f"[{file_path}] Shutdown requested at prompt {total_prompts + 1}, stopping gracefully")
@@ -377,14 +379,13 @@ class DenseRAG:
 
                 json_str = json.dumps(prompt, ensure_ascii=False, indent=4)
                 await f.write(json_str)
-
-                if total_prompts == 1 or (total_prompts == skip_count + 1 and skip_count > 0):
-                    logger.info(f"Sample Prompt: {prompt}")
-
+                new_items_written += 1
                 await f.flush()
 
-            await f.write("\n]")
-            await f.flush()
+            else:
+                if not file_exists or new_items_written > 0:
+                    await f.write("\n]")
+                    await f.flush()
 
         if self.shutdown_requested:
             logger.info(
