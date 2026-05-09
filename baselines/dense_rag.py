@@ -581,8 +581,8 @@ class DenseRAG:
                 logger.info("Starting retrieval pipelines")
 
                 for file_path in [
-                    # "xor_dev_retrieve_eng_span_v1_1.jsonl",
-                    # "xor_train_retrieve_eng_span.jsonl",
+                    "xor_dev_retrieve_eng_span_v1_1.jsonl",
+                    "xor_train_retrieve_eng_span.jsonl",
                     "xor_train_full.jsonl",
                     "xor_dev_full_v1_1.jsonl",
                 ]:
@@ -592,7 +592,7 @@ class DenseRAG:
                 logger.info(f"Starting inference: model={model_name}  span={span_type}")
                 await self.chat_llm(
                     model_name=model_name,
-                    input_dir=Path(retrieval_type) / "dense_retrieval",
+                    input_dir=Path(retrieval_type) / "done_dense_retrieval",
                     retrieval_type=retrieval_type,
                     span_type=span_type,
                     inference_batch_size=8,
@@ -648,7 +648,7 @@ if __name__ == '__main__':
         "--model-name",
         type=str,
         default=None,
-        choices=["CohereLabs/aya-101", "google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
+        choices=["google/gemma-3-27b-it", "Qwen/Qwen3-30B-A3B"],
         help="Inference model to use",
     )
 
