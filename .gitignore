@@ -324,4 +324,4 @@ http-client.private.env.json
 *sample*.*
 *extracted
 output/
-mecab*monolingual/dense_retrieval/*.json monolingual/
+*mecab*
