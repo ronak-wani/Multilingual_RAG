@@ -316,6 +316,7 @@ http-client.private.env.json
 *.zip
 *.xml
 *.jsonl
+*.json
 *qdrant*
 *.sif
 *storage*/
@@ -324,3 +325,4 @@ http-client.private.env.json
 *sample*.*
 *extracted
 output/
+*mecab*

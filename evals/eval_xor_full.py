@@ -19,8 +19,7 @@ import sys
 
 wakati = MeCab.Tagger("-Owakati")
 
-lang_dic = {'telugu': 'te', 'swahili': 'sw', 'thai': 'th', 'finnish': 'fi', 'indonesian': 'id',
-            'japanese': 'ja', 'russian': 'ru', 'arabic': 'ar', 'english': 'en', 'bengali': 'bn', "korean": "ko"}
+lang_dic = {'telugu': 'te', 'finnish': 'fi', 'japanese': 'ja', 'russian': 'ru', 'arabic': 'ar', 'english': 'en', 'bengali': 'bn', "korean": "ko"}
 
 def read_jsonlines(eval_file_name):
     lines = []
@@ -83,14 +82,17 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 
 
 # 3. XOR-Full Evaluation
-def calculate_f1_em_bleu(dataset, predictions):
+def calculate_f1_em_bleu(dataset, predictions, use_translated):
     lang_dict = {lang: {"count": 0, "f1": 0, "bleu": 0, "em": 0}
                  for lang in lang_dic.values()}
     
 
     for qa in dataset:        
         lang = qa["lang"]
-        gts = qa["answers"]
+        if use_translated == "true":
+            gts = qa["answers_translated"]
+        else:
+            gts = qa["answers"]
         q_id = qa["id"]
         lang_dict[lang]["count"] += 1
         if q_id not in predictions:
@@ -130,6 +132,13 @@ def main():
                         default=None, type=str)
     parser.add_argument("--pred_file",
                         default=None, type=str)
+    parser.add_argument(
+        "--use-translated",
+        required=True,
+        choices=["true", "false"],
+        type=str.lower,
+        help="Use answers_translated field (true) or answers field (false).",
+    )
 
     args = parser.parse_args()
     # load dpr results
@@ -138,7 +147,7 @@ def main():
         predictions = json.load(prediction_file)
     predictions = {id.split("_")[-1]: pred  for id, pred in predictions.items()}
     
-    results = calculate_f1_em_bleu(dataset, predictions)
+    results = calculate_f1_em_bleu(dataset, predictions, use_translated=args.use_translated.lower())
 
     f1_total, em_total, bleu_total = 0.0,0.0,0.0
     total_num = 0
