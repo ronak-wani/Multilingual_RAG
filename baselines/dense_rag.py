@@ -588,6 +588,9 @@ class DenseRAG:
                     "xor_dev_full_v1_1.jsonl",
                 ]:
                     await self.retrieval_pipeline(file_path, retrieval_type)
+                    if self.shutdown_requested:
+                        logger.info("Shutdown requested, stopping after current file")
+                        break
                 logger.info("Completed all the retrieval pipelines")
             if not only_retrieval:
                 logger.info(f"Starting inference: model={model_name}  span={span_type}")
