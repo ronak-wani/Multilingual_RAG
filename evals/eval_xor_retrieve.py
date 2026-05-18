@@ -96,7 +96,7 @@ def get_tokenizer(lang: str):
 
 def build_search_string(
     ctx_texts: list[str],
-    question_lang: str,       # kept for fallback only
+    question_lang: str,       
     max_token_num: int,
     retrieval_type: str = "multilingual",
 ) -> str:
@@ -203,6 +203,11 @@ def main():
     parser.add_argument("--data_file", required=True)
     parser.add_argument("--pred_file", required=True)
     parser.add_argument("--max_token_num", type=int, default=5000)
+    parser.add_argument(
+        "--retrieval-type",
+        choices=["crosslingual", "multilingual", "monolingual"],
+        required=True
+    )
     parser.add_argument(
         "--use-translated",
         required=True,
