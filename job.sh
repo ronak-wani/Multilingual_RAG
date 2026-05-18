@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J Multilingual_Retrieval
+#SBATCH -J Qwen
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -17,39 +17,39 @@ VENV_PYTHON=$(which python)
 
 # rm -rf .qdrant-initialized qdrant_sandbox/ storage/ snapshots/ dense_rag.log
 
-# module load apptainer
+module load apptainer
 
-# if [ ! -d "qdrant_sandbox" ]; then
-#   echo "Building Qdrant sandbox"
-#   apptainer build --sandbox qdrant_sandbox docker://qdrant/qdrant:latest
-# else
-#   echo "Qdrant sandbox already exists"
-# fi
+if [ ! -d "qdrant_sandbox" ]; then
+  echo "Building Qdrant sandbox"
+  apptainer build --sandbox qdrant_sandbox docker://qdrant/qdrant:latest
+else
+  echo "Qdrant sandbox already exists"
+fi
 
-# export QDRANT_HOST=localhost
-# export QDRANT_PORT=6333
+export QDRANT_HOST=localhost
+export QDRANT_PORT=6333
 
-# QDRANT_SANDBOX=qdrant_sandbox
-# QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
-# mkdir -p $QDRANT_STORAGE
+QDRANT_SANDBOX=qdrant_sandbox
+QDRANT_STORAGE=/home/$USER/CIMCL_RAG_RESEARCH/qdrant_storage
+mkdir -p $QDRANT_STORAGE
 
-# echo "Starting Qdrant"
+echo "Starting Qdrant"
 
-# apptainer exec \
-# --bind ${QDRANT_STORAGE}:/qdrant/storage \
-# --env QDRANT__SERVICE__HOST=0.0.0.0 \
-# --env QDRANT__STORAGE__WAL__SYNC=false \
-# $QDRANT_SANDBOX \
-# $QDRANT_SANDBOX/qdrant/qdrant &
+apptainer exec \
+--bind ${QDRANT_STORAGE}:/qdrant/storage \
+--env QDRANT__SERVICE__HOST=0.0.0.0 \
+--env QDRANT__STORAGE__WAL__SYNC=false \
+$QDRANT_SANDBOX \
+$QDRANT_SANDBOX/qdrant/qdrant &
 
-# QDRANT_PID=$!
-# echo "Qdrant PID: $QDRANT_PID"
+QDRANT_PID=$!
+echo "Qdrant PID: $QDRANT_PID"
 
-# echo "Waiting for Qdrant"
-# until curl -s http://localhost:6333/readyz > /dev/null; do
-#   sleep 2
-# done
-# echo "Qdrant is ready."
+echo "Waiting for Qdrant"
+until curl -s http://localhost:6333/readyz > /dev/null; do
+  sleep 2
+done
+echo "Qdrant is ready."
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -66,9 +66,9 @@ trap '
 # PID=$!
 # wait $PID
 #
-# $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type multilingual &
-# PID=$!
-# wait $PID
+$VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type multilingual &
+PID=$!
+wait $PID
 
 # $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type crosslingual &
 # PID=$!
@@ -93,7 +93,7 @@ trap '
 # wait $TRANSLATE_TARGET_TO_EN_PID
 
 # MODEL="CohereLabs/aya-101"
-MODEL="google/gemma-3-27b-it"
+# MODEL="google/gemma-3-27b-it"
 # MODEL="Qwen/Qwen3-30B-A3B"
 
 # echo "Running monolingual + xor_full"
@@ -107,15 +107,15 @@ MODEL="google/gemma-3-27b-it"
 # wait $PID                    
 # echo "Completed monolingual + xor_full"
 
-echo "Running crosslingual + xor_english_span"
-$VENV_PYTHON -m baselines.dense_rag \
-    --skip-retrieval \
-    --retrieval-type crosslingual \
-    --span-type xor_english_span \
-    --model-name "$MODEL" &
-PID=$!                      
-wait $PID     
-echo "Completed crosslingual + xor_english_span"
+# echo "Running crosslingual + xor_english_span"
+# $VENV_PYTHON -m baselines.dense_rag \
+#     --skip-retrieval \
+#     --retrieval-type crosslingual \
+#     --span-type xor_english_span \
+#     --model-name "$MODEL" &
+# PID=$!                      
+# wait $PID     
+# echo "Completed crosslingual + xor_english_span"
 
 # echo "Running multilingual + xor_english_span"
 # $VENV_PYTHON -m baselines.dense_rag \
@@ -137,6 +137,6 @@ echo "Completed crosslingual + xor_english_span"
 # wait $PID     
 # echo "Completed multilingual + xor_full"
 
-# echo "Stopping Qdrant"
-# kill "$QDRANT_PID" 2>/dev/null || true
-# wait "$QDRANT_PID" 2>/dev/null || true
+echo "Stopping Qdrant"
+kill "$QDRANT_PID" 2>/dev/null || true
+wait "$QDRANT_PID" 2>/dev/null || true
