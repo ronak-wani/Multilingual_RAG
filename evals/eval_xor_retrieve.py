@@ -4,6 +4,27 @@ from statistics import mean
 import argparse
 from tqdm import tqdm
 import nltk
+from kiwipiepy import Kiwi
+from lingua import Language, LanguageDetectorBuilder
+
+_LINGUA_LANGUAGES = [
+    Language.ARABIC, Language.BENGALI, Language.ENGLISH,
+    Language.FINNISH, Language.JAPANESE, Language.KOREAN,
+    Language.RUSSIAN, Language.TELUGU,
+]
+
+_detector = LanguageDetectorBuilder.from_languages(*_LINGUA_LANGUAGES).build()
+
+_LINGUA_TO_LANG = {
+    Language.ARABIC:   "ar",
+    Language.BENGALI:  "bn",
+    Language.ENGLISH:  "en",
+    Language.FINNISH:  "fi",
+    Language.JAPANESE: "ja",
+    Language.KOREAN:   "ko",
+    Language.RUSSIAN:  "ru",
+    Language.TELUGU:   "te",
+}
 
 _tokenizer_cache: dict = {}
 
@@ -32,7 +53,6 @@ def _get_tokenizer(lang: str):
 
     if lang == "ko":
         try:
-            from kiwipiepy import Kiwi
             _kiwi = Kiwi()
             def _ko(text):
                 return [token.form for token in _kiwi.tokenize(text)]
@@ -74,9 +94,12 @@ def get_tokenizer(lang: str):
     return _tokenizer_cache[lang]
 
 
-def build_search_string(ctx_texts: list[str], lang: str, max_token_num: int) -> str:
-    tokenize_fn, char_level = get_tokenizer(lang)
-
+def build_search_string(
+    ctx_texts: list[str],
+    question_lang: str,       # kept for fallback only
+    max_token_num: int,
+    retrieval_type: str = "multilingual",
+) -> str:
     selected_texts = []
     budget_size = 0
 
@@ -84,6 +107,15 @@ def build_search_string(ctx_texts: list[str], lang: str, max_token_num: int) -> 
         if budget_size >= max_token_num:
             break
 
+        if retrieval_type == "crosslingual":
+            ctx_lang = "en"
+        elif retrieval_type == "monolingual":
+            ctx_lang = question_lang
+        else:
+            detected = _detector.detect_language_of(ctx)
+            ctx_lang = _LINGUA_TO_LANG[detected] if detected is not None and detected in _LINGUA_TO_LANG else question_lang
+
+        tokenize_fn, char_level = get_tokenizer(ctx_lang)
         tokens = tokenize_fn(ctx)
         n_tokens = len(tokens)
         remaining = max_token_num - budget_size
@@ -135,8 +167,10 @@ def evaluate_top_k_hit(
     results: list[dict],
     gt_answers: dict,
     max_token_num: int = 5000,
-) -> dict:
-    per_lang: dict[str, dict] = {}
+    retrieval_type: str = "multilingual",
+) -> dict[str, dict[str, int]]:
+
+    per_lang: dict[str, dict[str, int]] = {}
 
     for item in tqdm(results):
         q_id  = item["id"]
@@ -156,7 +190,7 @@ def evaluate_top_k_hit(
         per_lang[lang]["count"] += 1
 
         ctx_texts   = item["ctxs"]
-        search_str  = build_search_string(ctx_texts, lang, max_token_num)
+        search_str  = build_search_string(ctx_texts, lang, max_token_num, retrieval_type)
 
         if any(answer_in_text(ans, search_str) for ans in span_answers):
             per_lang[lang]["hit"] += 1
@@ -182,6 +216,8 @@ def main():
     )
     args = parser.parse_args()
 
+    qid2answers: dict[str, list[str]] = {}
+
     with open(args.pred_file) as f:
         predictions = json.load(f)
     input_data  = read_jsonlines(args.data_file)
@@ -202,7 +238,7 @@ def main():
     for topk in [2, 5]:
         print(f"Evaluating R@{topk}kt  (max {topk*1000} tokens/chars)")
 
-        results = evaluate_top_k_hit(predictions, qid2answers, topk * 1000)
+        results = evaluate_top_k_hit(predictions, qid2answers, topk * 1000, args.retrieval_type)
         avg_scores = []
 
         for lang in lang_order:
