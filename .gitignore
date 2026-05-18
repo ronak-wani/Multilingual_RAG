@@ -315,7 +315,8 @@ http-client.private.env.json
 *.svg
 *.zip
 *.xml
-# *.jsonl
+*.jsonl
+*.json
 *qdrant*
 *.sif
 *storage*/
