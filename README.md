@@ -78,6 +78,12 @@ If you have already cloned the repository without the submodule, initialize and 
 git submodule update --init --recursive
 ```
 
+If you only want to clone the current RAG repository, simple use:
+
+```bash
+git clone https://github.com/ronak-wani/CIMCL_RAG_RESEARCH.git
+```
+
 ### 2. Requirements
 Install the dependencies from the `requirements.txt` file. Note that language-specific tokenizers are used for evaluations (such as MeCab/fugashi for Japanese, Kiwi for Korean, and Indic NLP for Telugu/Bengali).
 
