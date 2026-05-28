@@ -1,0 +1,3 @@
+[submodule "multilingual-smile-metric-qna-eval"]
+	path = multilingual-smile-metric-qna-eval
+	url = https://github.com/SaiTeja6304/multilingual-smile-metric-qna-eval.git

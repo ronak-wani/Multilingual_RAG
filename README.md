@@ -1,6 +1,6 @@
 # Multilingual, Crosslingual, and Monolingual RAG Research
 
-This repository contains the codebase for evaluating Retrieval-Augmented Generation (RAG) across multiple language paradigms (Multilingual, Crosslingual, and Monolingual) on the **XOR-QA benchmark** (an open-domain multilingual QA dataset built on top of TyDi QA).
+This repository contains the codebase for evaluating Retrieval-Augmented Generation (RAG) across multiple strategies (Multilingual, Crosslingual, and Monolingual) on the **XOR-TyDI benchmark** (an open-domain multilingual QA benchmark).
 
 The codebase supports embedding generation, vector indexing using **Qdrant**, multi-lingual passage retrieval, batch LLM inference, and extensive evaluation of retrieval and question-answering accuracy.
 
@@ -40,9 +40,9 @@ multilingual_rag/
 
 ---
 
-## RAG Paradigms
+## RAG Strategies
 
-The project implements and evaluates three distinct RAG settings:
+The project implements and evaluates three distinct RAG strategies:
 
 | Setting | Query Language | Source Index for Retrieval | Target Answer Language |
 | :--- | :--- | :--- | :--- |
