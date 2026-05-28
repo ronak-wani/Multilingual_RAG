@@ -65,7 +65,20 @@ The codebase supports 8 languages:
 
 ## Installation & Setup
 
-### 1. Requirements
+### 1. Cloning the Repository
+Since this repository contains a Git submodule (`multilingual-smile-metric-qna-eval`), clone it recursively to pull the submodule files:
+
+```bash
+git clone --recursive https://github.com/ronak-wani/CIMCL_RAG_RESEARCH.git
+```
+
+If you have already cloned the repository without the submodule, initialize and pull it using:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 2. Requirements
 Install the dependencies from the `requirements.txt` file. Note that language-specific tokenizers are used for evaluations (such as MeCab/fugashi for Japanese, Kiwi for Korean, and Indic NLP for Telugu/Bengali).
 
 ```bash
@@ -74,7 +87,7 @@ pip install -r requirements.txt
 pip install fugashi unidic-lite kiwipiepy indic-nlp-library camel-tools
 ```
 
-### 2. Preprocessing Data
+### 3. Preprocessing Data
 Run the preprocessing script to download the XML dumps of the Wikipedia datasets, extract the articles to JSON using `WikiExtractor`, and download the XOR-QA train and dev benchmark files:
 
 ```bash
