@@ -10,7 +10,7 @@ from utils.model_config import (
 )
 import ijson
 
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from concurrent.futures import ThreadPoolExecutor
 from langchain_core.documents import Document
 import uuid, aiofiles
@@ -24,12 +24,9 @@ from qdrant_client import QdrantClient, models
 
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('dense_rag.log')
-    ]
+    format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("dense_rag.log")],
 )
 
 logger = logging.getLogger(__name__)
@@ -57,10 +54,10 @@ class DenseRAG:
                 trust_remote_code=True,
                 model_kwargs={
                     "attn_implementation": "flash_attention_2",
-                    "torch_dtype": "bfloat16"
+                    "torch_dtype": "bfloat16",
                 },
                 tokenizer_kwargs={"padding_side": "left"},
-                device="cuda"
+                device="cuda",
             )
 
             self.embed_model.eval()
@@ -77,7 +74,9 @@ class DenseRAG:
 
             self.qdrant_client = QdrantClient(url=qdrant_url, timeout=1200)
             logger.info(f"Connected to Qdrant server at {qdrant_url}")
-            self.collection_exist = self.qdrant_client.collection_exists(self.collection_name)
+            self.collection_exist = self.qdrant_client.collection_exists(
+                self.collection_name
+            )
             if not self.collection_exist:
                 logger.info(f"Creating new collection")
                 self.qdrant_client.create_collection(
@@ -113,9 +112,7 @@ class DenseRAG:
 
     async def chunk_document(self, doc, text_split):
         return await asyncio.get_event_loop().run_in_executor(
-            executor,
-            text_split.split_documents,
-            [doc]
+            executor, text_split.split_documents, [doc]
         )
 
     async def create_embeddings(self, wiki, text_split, batch_size=256):
@@ -125,15 +122,17 @@ class DenseRAG:
         checkpoint_count = self.qdrant_client.count(
             collection_name=self.collection_name,
             count_filter=models.Filter(
-                must=[models.FieldCondition(
-                    key="wiki",
-                    match=models.MatchValue(value=wiki)
-                )]
-            )
+                must=[
+                    models.FieldCondition(
+                        key="wiki", match=models.MatchValue(value=wiki)
+                    )
+                ]
+            ),
         ).count
 
         logger.info(
-            f"[{wiki}] Found {checkpoint_count:,} points already uploaded, skipping first {checkpoint_count} chunks")
+            f"[{wiki}] Found {checkpoint_count:,} points already uploaded, skipping first {checkpoint_count} chunks"
+        )
 
         chunks_skipped = 0
         articles_processed = 0
@@ -149,7 +148,7 @@ class DenseRAG:
         for wiki_file in wiki_files:
             logger.info(f"[{wiki}] Processing {wiki_file}")
 
-            with open(wiki_file, 'r', encoding='utf-8') as f:
+            with open(wiki_file, "r", encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
@@ -159,19 +158,19 @@ class DenseRAG:
                         logger.warning(f"[{wiki}] Invalid JSON line in {wiki_file}")
                         continue
 
-                    if not article.get('text') or len(article['text']) < 100:
+                    if not article.get("text") or len(article["text"]) < 100:
                         continue
 
                     articles_processed += 1
 
                     doc = Document(
-                        page_content=article['text'],
+                        page_content=article["text"],
                         metadata={
-                            'source': wiki,
-                            'title': article.get('title', ''),
-                            'url': article.get('url', ''),
-                            'id': article.get('id', '')
-                        }
+                            "source": wiki,
+                            "title": article.get("title", ""),
+                            "url": article.get("url", ""),
+                            "id": article.get("id", ""),
+                        },
                     )
 
                     chunks = await self.chunk_document(doc, text_split)
@@ -180,7 +179,9 @@ class DenseRAG:
                         if chunks_skipped < checkpoint_count:
                             chunks_skipped += 1
                             if chunks_skipped % 100 == 0:
-                                logger.info(f"[{wiki}] Skipped {chunks_skipped:,}/{checkpoint_count:,} chunks")
+                                logger.info(
+                                    f"[{wiki}] Skipped {chunks_skipped:,}/{checkpoint_count:,} chunks"
+                                )
                         else:
                             docs.append(chunk)
                             texts.append(chunk.page_content)
@@ -188,39 +189,46 @@ class DenseRAG:
                                 num_batch += 1
                                 torch.cuda.empty_cache()
                                 logger.info(
-                                    f"[{wiki}] Starting embedding generation for Batch {num_batch} ({articles_processed:,} articles)")
+                                    f"[{wiki}] Starting embedding generation for Batch {num_batch} ({articles_processed:,} articles)"
+                                )
                                 embeddings_array = self.embed_model.encode_document(
                                     texts,
                                     batch_size=128,
                                     show_progress_bar=False,
                                     convert_to_tensor=False,
                                     normalize_embeddings=False,
-                                    device='cuda',
+                                    device="cuda",
                                 )
                                 embeddings = embeddings_array.tolist()
                                 yield embeddings, docs
-                                logger.info(f"[{wiki}] Generated {len(embeddings)} embeddings")
+                                logger.info(
+                                    f"[{wiki}] Generated {len(embeddings)} embeddings"
+                                )
                                 del embeddings_array, embeddings
                                 gc.collect()
                                 torch.cuda.empty_cache()
                                 docs, texts = [], []
                                 if self.shutdown_requested:
                                     logger.info(
-                                        f"[{wiki}] Shutdown requested, stopping generator after batch {num_batch}")
+                                        f"[{wiki}] Shutdown requested, stopping generator after batch {num_batch}"
+                                    )
                                     return
-            logger.info(f"[{wiki}] Completed {wiki_file} ({articles_processed:,} total articles)")
+            logger.info(
+                f"[{wiki}] Completed {wiki_file} ({articles_processed:,} total articles)"
+            )
         if texts:
             num_batch += 1
             torch.cuda.empty_cache()
             logger.info(
-                f"[{wiki}] Starting embedding generation for final Batch {num_batch} ({articles_processed:,} articles)")
+                f"[{wiki}] Starting embedding generation for final Batch {num_batch} ({articles_processed:,} articles)"
+            )
             embeddings_array = self.embed_model.encode_document(
                 texts,
                 batch_size=128,
                 show_progress_bar=False,
                 convert_to_tensor=False,
                 normalize_embeddings=False,
-                device='cuda',
+                device="cuda",
             )
             embeddings = embeddings_array.tolist()
             yield embeddings, docs
@@ -228,7 +236,9 @@ class DenseRAG:
             del embeddings_array
             gc.collect()
             torch.cuda.empty_cache()
-        logger.info(f"[{wiki}] Completed: {articles_processed:,} articles, {num_batch} batches")
+        logger.info(
+            f"[{wiki}] Completed: {articles_processed:,} articles, {num_batch} batches"
+        )
 
     async def upload(self, embeddings, documents, wiki):
 
@@ -240,15 +250,12 @@ class DenseRAG:
                     "text": doc.page_content,
                     "metadata": doc.metadata,
                     "wiki": wiki,
-                }
+                },
             )
             for embedding, doc in zip(embeddings, documents)
         ]
 
-        self.qdrant_client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
+        self.qdrant_client.upsert(collection_name=self.collection_name, points=points)
         logger.info(f"[{wiki}] Uploaded batch of {len(points)} points")
         del points
         torch.cuda.empty_cache()
@@ -261,35 +268,52 @@ class DenseRAG:
             keep_separator=False,
         )
 
-        wikis = ['arwiki', 'bnwiki', 'enwiki', 'fiwiki', 'jawiki', 'kowiki', 'ruwiki', 'tewiki']
+        wikis = [
+            "arwiki",
+            "bnwiki",
+            "enwiki",
+            "fiwiki",
+            "jawiki",
+            "kowiki",
+            "ruwiki",
+            "tewiki",
+        ]
 
         logger.info(f"Procesing wikis: {wikis}")
 
         for wiki in wikis:
             logger.info(f"[{wiki}] Starting embedding process")
             async for embeddings, docs in self.create_embeddings(wiki, text_split):
-                logger.info(f"[{wiki}] Uploading {len(embeddings)} embeddings to Qdrant")
+                logger.info(
+                    f"[{wiki}] Uploading {len(embeddings)} embeddings to Qdrant"
+                )
                 await self.upload(embeddings, docs, wiki)
                 logger.info(f"[{wiki}] Uploading {len(embeddings)} completed")
                 if self.shutdown_requested:
-                    logger.info(f"[{wiki}] Shutdown requested, stopping after this batch")
+                    logger.info(
+                        f"[{wiki}] Shutdown requested, stopping after this batch"
+                    )
                     return
 
-        docs_count = self.qdrant_client.count(collection_name=self.collection_name).count
-        logger.info(f"Data loading completed. Total documents in collection: {docs_count}")
+        docs_count = self.qdrant_client.count(
+            collection_name=self.collection_name
+        ).count
+        logger.info(
+            f"Data loading completed. Total documents in collection: {docs_count}"
+        )
 
     def count_existing_prompts(self, output_file, retrieval):
         if not os.path.exists(output_file):
             return 0
         try:
             if not retrieval:
-                with open(output_file, 'r', encoding='utf-8') as f:
+                with open(output_file, "r", encoding="utf-8") as f:
                     count = sum(1 for line in f if line.strip())
                 logger.info(f"Found {count} existing predictions in {output_file}")
                 return count
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, "r", encoding="utf-8") as f:
                 content = f.read().strip()
-                if not content or content == '[':
+                if not content or content == "[":
                     return 0
                 count = content.count('"id":')
                 logger.info(f"Found {count} existing prompts in {output_file}")
@@ -304,8 +328,8 @@ class DenseRAG:
             logger.error(f"File not found: {file_path}")
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        with open(file_path, 'r', encoding='utf-8') as f:
-            if file_path.endswith('.jsonl'):
+        with open(file_path, "r", encoding="utf-8") as f:
+            if file_path.endswith(".jsonl"):
                 for i, line in enumerate(f):
                     if not line.strip():
                         continue
@@ -349,7 +373,9 @@ class DenseRAG:
 
             for item in self.read_file(file_path, skip_count):
                 if self.shutdown_requested:
-                    logger.info(f"[{file_path}] Shutdown requested at prompt {total_prompts + 1}, stopping gracefully")
+                    logger.info(
+                        f"[{file_path}] Shutdown requested at prompt {total_prompts + 1}, stopping gracefully"
+                    )
                     break
 
                 total_prompts += 1
@@ -357,19 +383,20 @@ class DenseRAG:
                 if total_prompts % 100 == 1:
                     logger.info(f"[{file_path}] Processing prompt {total_prompts}")
 
-                question = item['question']
+                question = item["question"]
                 query_embedding_raw = self.embed_model.encode_query([question])
                 query_embedding = query_embedding_raw[0].tolist()
-                search_result = self.retrieve(query_embedding, retrieval_type, item['lang'])
+                search_result = self.retrieve(
+                    query_embedding, retrieval_type, item["lang"]
+                )
 
                 retrieved_context = [
-                    point.payload["text"]
-                    for point in search_result.points
+                    point.payload["text"] for point in search_result.points
                 ]
                 prompt = {
-                    "id": item['id'],
-                    "lang": item['lang'],
-                    "question": item['question'],
+                    "id": item["id"],
+                    "lang": item["lang"],
+                    "question": item["question"],
                     "ctxs": retrieved_context,
                 }
                 if not first_item:
@@ -389,29 +416,34 @@ class DenseRAG:
 
         if self.shutdown_requested:
             logger.info(
-                f"[{file_path}] Graceful shutdown: Saved {total_prompts - skip_count} new prompts (total: {total_prompts})")
+                f"[{file_path}] Graceful shutdown: Saved {total_prompts - skip_count} new prompts (total: {total_prompts})"
+            )
         else:
-            logger.info(f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}")
+            logger.info(
+                f"[{file_path}] Completed: {total_prompts} total prompts in {output_file}"
+            )
 
     def retrieve(self, embedding, retrieval_type, lang):
         query_filter = None
-        if retrieval_type == 'monolingual':
+        if retrieval_type == "monolingual":
             query_filter = models.Filter(
-                must=[models.FieldCondition(
-                    key="wiki",
-                    match=models.MatchValue(value=f"{lang}wiki")
-                )]
+                must=[
+                    models.FieldCondition(
+                        key="wiki", match=models.MatchValue(value=f"{lang}wiki")
+                    )
+                ]
             )
 
-        elif retrieval_type == 'crosslingual':
+        elif retrieval_type == "crosslingual":
             query_filter = models.Filter(
-                must=[models.FieldCondition(
-                    key="wiki",
-                    match=models.MatchValue(value="enwiki")
-                )]
+                must=[
+                    models.FieldCondition(
+                        key="wiki", match=models.MatchValue(value="enwiki")
+                    )
+                ]
             )
 
-        elif retrieval_type == 'multilingual':
+        elif retrieval_type == "multilingual":
             query_filter = None
 
         search_result = self.qdrant_client.query_points(
@@ -435,7 +467,9 @@ class DenseRAG:
             except Exception as exc:
                 asyncio.run_coroutine_threadsafe(queue.put(exc), loop).result()
             finally:
-                asyncio.run_coroutine_threadsafe(queue.put(StopAsyncIteration()), loop).result()
+                asyncio.run_coroutine_threadsafe(
+                    queue.put(StopAsyncIteration()), loop
+                ).result()
 
         fut = loop.run_in_executor(exec_, _producer)
         while True:
@@ -447,9 +481,15 @@ class DenseRAG:
             yield item
         await fut
 
-    async def chat_llm(self, model_name, input_dir, retrieval_type, span_type, inference_batch_size=8):
+    async def chat_llm(
+        self, model_name, input_dir, retrieval_type, span_type, inference_batch_size=8
+    ):
         cfg = get_model_config(model_name)
-        output_dir = Path(retrieval_type) / f"{span_type}_llm_predictions" / model_name.replace("/", "_")
+        output_dir = (
+            Path(retrieval_type)
+            / f"{span_type}_llm_predictions"
+            / model_name.replace("/", "_")
+        )
         output_dir.mkdir(parents=True, exist_ok=True)
 
         input_files = sorted(Path(input_dir).glob("*.json"))
@@ -470,8 +510,16 @@ class DenseRAG:
             if self.shutdown_requested:
                 logger.warning("Shutdown - skipping remaining files")
                 break
-
-            output_file = str(Path(output_dir) / f"{input_file.stem}_predictions.jsonl")
+            stem = input_file.stem
+            if retrieval_type == "monolingual":
+                subfolder = "original_answer" if "full" in stem else "use_translated"
+            elif retrieval_type == "crosslingual":
+                subfolder = "use_translated" if "full" in stem else "original_answer"
+            else:
+                subfolder = ""
+            output_subdir = Path(output_dir) / subfolder
+            output_subdir.mkdir(parents=True, exist_ok=True)
+            output_file = str(output_subdir / f"{stem}_predictions.jsonl")
 
             skip_count = self.count_existing_prompts(output_file, False)
             total_written = skip_count
@@ -493,7 +541,13 @@ class DenseRAG:
                     if not items:
                         return 0
                     predictions: list[str] = await loop.run_in_executor(
-                        executor, run_batch_sync, tok, model, cfg, prompts, inference_batch_size,
+                        executor,
+                        run_batch_sync,
+                        tok,
+                        model,
+                        cfg,
+                        prompts,
+                        inference_batch_size,
                     )
                     n = 0
                     for item, pred in zip(items, predictions):
@@ -503,8 +557,11 @@ class DenseRAG:
                             "model": model_name,
                             "span_type": span_type,
                             "retrieval_type": retrieval_type,
-                            "prompt": prompts[n] if isinstance(prompts[n], str) else json.dumps(prompts[n],
-                                                                                                ensure_ascii=False),
+                            "prompt": (
+                                prompts[n]
+                                if isinstance(prompts[n], str)
+                                else json.dumps(prompts[n], ensure_ascii=False)
+                            ),
                             "prediction": pred,
                         }
                         await fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -549,7 +606,9 @@ class DenseRAG:
                 if not self.shutdown_requested:
                     eval_file = output_file.replace("_predictions.jsonl", "_eval.json")
                     self._write_eval_json(output_file, eval_file)
-                    logger.info(f"[{input_file.name}] Complete — {total_written} predictions written")
+                    logger.info(
+                        f"[{input_file.name}] Complete — {total_written} predictions written"
+                    )
 
         del model, tok
         gc.collect()
@@ -566,11 +625,19 @@ class DenseRAG:
                 predictions[str(rec["id"])] = rec["prediction"]
         with open(eval_json, "w", encoding="utf-8") as f:
             json.dump(predictions, f, ensure_ascii=False, indent=2)
-        logger.info(f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)")
+        logger.info(
+            f"Eval JSON written → {eval_json}  ({len(predictions)} predictions)"
+        )
 
-    async def main(self, model_name: str = "", skip_loading=False, skip_retrieval=False, only_retrieval=False,
-                   retrieval_type="multilingual",
-                   span_type="english_span"):
+    async def main(
+        self,
+        model_name: str = "",
+        skip_loading=False,
+        skip_retrieval=False,
+        only_retrieval=False,
+        retrieval_type="multilingual",
+        span_type="english_span",
+    ):
         try:
             if skip_retrieval:
                 logger.info("Skipping retrieval — running inference only")
@@ -582,10 +649,10 @@ class DenseRAG:
                 logger.info("Starting retrieval pipelines")
 
                 for file_path in [
-                    "xor_dev_retrieve_eng_span_v1_1.jsonl",
-                    "xor_train_retrieve_eng_span.jsonl",
+                    # "xor_dev_retrieve_eng_span_v1_1.jsonl",
+                    # "xor_train_retrieve_eng_span.jsonl",
                     "xor_train_full.jsonl",
-                    "xor_dev_full_v1_1.jsonl",
+                    # "xor_dev_full_v1_1.jsonl",
                 ]:
                     await self.retrieval_pipeline(file_path, retrieval_type)
                     if self.shutdown_requested:
@@ -596,7 +663,7 @@ class DenseRAG:
                 logger.info(f"Starting inference: model={model_name}  span={span_type}")
                 await self.chat_llm(
                     model_name=model_name,
-                    input_dir=Path(retrieval_type) / "dense_retrieval",
+                    input_dir=Path(retrieval_type) / "done_dense_retrieval",
                     retrieval_type=retrieval_type,
                     span_type=span_type,
                     inference_batch_size=8,
@@ -608,33 +675,33 @@ class DenseRAG:
             raise
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Dense RAG Wikipedia Processing')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Dense RAG Wikipedia Processing")
 
     parser.add_argument(
-        '--skip-loading',
-        action='store_true',
-        help='Skip data loading and only run retrieval/inference pipelines'
+        "--skip-loading",
+        action="store_true",
+        help="Skip data loading and only run retrieval/inference pipelines",
     )
 
     parser.add_argument(
-        '--skip-retrieval',
-        action='store_true',
-        help='Skip retrieval and only run inference pipelines'
+        "--skip-retrieval",
+        action="store_true",
+        help="Skip retrieval and only run inference pipelines",
     )
 
     parser.add_argument(
-        '--only-retrieval',
-        action='store_true',
-        help='Do only retrieval and no inference pipelines'
+        "--only-retrieval",
+        action="store_true",
+        help="Do only retrieval and no inference pipelines",
     )
 
     parser.add_argument(
-        '--retrieval-type',
+        "--retrieval-type",
         type=str,
         required=True,
-        choices=['monolingual', 'crosslingual', 'multilingual'],
-        help='Specify the retrieval type'
+        choices=["monolingual", "crosslingual", "multilingual"],
+        help="Specify the retrieval type",
     )
 
     parser.add_argument(
@@ -666,14 +733,16 @@ if __name__ == '__main__':
 
     try:
         xor = DenseRAG(skip_retrieval=args.skip_retrieval)
-        asyncio.run(xor.main(
-            model_name=args.model_name,
-            skip_loading=args.skip_loading,
-            only_retrieval=args.only_retrieval,
-            skip_retrieval=args.skip_retrieval,
-            retrieval_type=args.retrieval_type,
-            span_type=args.span_type,
-        ))
+        asyncio.run(
+            xor.main(
+                model_name=args.model_name,
+                skip_loading=args.skip_loading,
+                only_retrieval=args.only_retrieval,
+                skip_retrieval=args.skip_retrieval,
+                retrieval_type=args.retrieval_type,
+                span_type=args.span_type,
+            )
+        )
         logger.info("All XOR tasks completed")
     except Exception as e:
         logger.error("Program crashed abruptly", exc_info=True)
