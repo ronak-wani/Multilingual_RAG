@@ -105,7 +105,7 @@ sbatch utils/preprocess.sh
 ## Running the RAG Pipeline
 
 The primary orchestrator script is `job.sh`. It automatically:
-1. Spawns an **Apptainer (Singularity)** sandbox container running **Qdrant Server**.
+1. Spawns an **Apptainer** sandbox container running **Qdrant Server**.
 2. Creates the `wiki_composite` collection on the Qdrant instance.
 3. Loads the embedding model (`nvidia/llama-embed-nemotron-8b`) on the GPU.
 4. Generates embeddings and upserts Wikipedia text blocks into the Qdrant DB.
@@ -184,30 +184,29 @@ python evals/eval_xor_retrieve.py \
     --retrieval-type multilingual
 ```
 
-### 2. English Span QA Evaluation
-Computes F1, Exact Match (EM), Precision, and Recall scores for English target answers:
+### 2. LLM Generation Evaluation
+To evaluate LLM-generated answers, you can use the `multilingual-smile-metric-qna-eval` submodule. It computes multilingual lexical-semantic evaluations across the 8 supported languages.
+
+Run the evaluation script from the submodule using your generated predictions and ground-truth reference files:
+
 ```bash
-python evals/eval_xor_engspan.py \
-    --data_file translated_benchmark_files/xor_dev_retrieve_eng_span_v1_1.jsonl \
-    --pred_file crosslingual/dense_retrieval/predictions.json
+python multilingual-smile-metric-qna-eval/main.py \
+    --input <path_to_predictions.jsonl> \
+    --ground-truth <path_to_ground_truth.jsonl> \
+    --output <path_to_output_results.csv> \
+    --metrics smile rouge exact_match \
+    --verbose
 ```
 
-### 3. Full Multilingual QA Evaluation
-Computes F1, EM, and BLEU scores for target-language answers, employing MeCab to tokenize Japanese text:
-```bash
-python evals/eval_xor_full.py \
-    --data_file translated_benchmark_files/xor_dev_full_v1_1.jsonl \
-    --pred_file monolingual/dense_retrieval/predictions.json \
-    --use-translated false
-```
+Supported metrics: SMILE, ROUGE-L, BERTScore, METEOR, Exact Match, sBERT, BLEURT, MoverScore. You can either choose to use all metrics or select specific ones by modifying the `--metrics` argument. By default, the script computes all metrics.
 
 ---
 
 ## Supported Models
 
 Models are defined and instantiated via `utils/model_config.py`:
-1. **`google/gemma-3-27b-it`**: A causal model using a custom processor, chat template, and system instructions for concise question answering.
-2. **`Qwen/Qwen3-30B-A3B`**: A causal model featuring custom end-of-thinking token stripping.
+1. **`google/gemma-3-27b-it`**
+2. **`Qwen/Qwen3-30B-A3B`**
 
 ---
 
