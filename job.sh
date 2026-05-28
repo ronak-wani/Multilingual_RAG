@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J Qwen
+#SBATCH -J Multilingual_Retrieval
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -74,7 +74,7 @@ wait $PID
 # PID=$!
 # wait $PID
 
-# $VENV_PYTHON baselines/translate.py \
+# $VENV_PYTHON utils.translate \
 #     xor_dev_retrieve_eng_span_v1_1.jsonl \
 #     xor_train_retrieve_eng_span.jsonl \
 #     --direction en-to-target \
@@ -83,7 +83,7 @@ wait $PID
 # TRANSLATE_EN_TO_TARGET_PID=$!
 # wait $TRANSLATE_EN_TO_TARGET_PID
 
-# $VENV_PYTHON baselines/translate.py \
+# $VENV_PYTHON utils.translate \
 #     xor_dev_full_v1_1.jsonl \
 #     xor_train_full.jsonl \
 #     --direction auto \
