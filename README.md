@@ -7,8 +7,8 @@ The codebase supports embedding generation, vector indexing using **Qdrant**, mu
 ---
 
 ## Authors & Contributors
-- **Ronak Wani** (ronak-wani)
-- **Sai Teja Sunku** (ssunku)
+- **Ronak Wani**
+- **Sai Teja Sunku**
 
 ---
 
