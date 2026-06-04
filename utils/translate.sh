@@ -18,25 +18,25 @@ BASE_OUT="$HOME/CIMCL_RAG_RESEARCH/multilingual/xor_english_span_llm_predictions
 SCRIPT="$HOME/CIMCL_RAG_RESEARCH/utils/llm_pred_translate.py"
 
 INPUT_FILES=(
-    # "$BASE_IN/Qwen_Qwen3-30B-A3B/use_translated/xor_dev_full_v1_1_results_predictions.jsonl"
-    # "$BASE_IN/Qwen_Qwen3-30B-A3B/use_translated/xor_train_full_results_predictions.jsonl"
-    # "$BASE_IN/Qwen_Qwen3-30B-A3B/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions.jsonl"
-    # "$BASE_IN/Qwen_Qwen3-30B-A3B/original_answer/xor_train_retrieve_eng_span_results_predictions.jsonl"
-    # "$BASE_IN/google_gemma-3-27b-it/use_translated/xor_dev_full_v1_1_results_predictions.jsonl"
+    "$BASE_IN/Qwen_Qwen3-30B-A3B/use_translated/xor_dev_full_v1_1_results_predictions.jsonl"
+    "$BASE_IN/Qwen_Qwen3-30B-A3B/use_translated/xor_train_full_results_predictions.jsonl"
+    "$BASE_IN/Qwen_Qwen3-30B-A3B/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions.jsonl"
+    "$BASE_IN/Qwen_Qwen3-30B-A3B/original_answer/xor_train_retrieve_eng_span_results_predictions.jsonl"
+    "$BASE_IN/google_gemma-3-27b-it/use_translated/xor_dev_full_v1_1_results_predictions.jsonl"
     "$BASE_IN/google_gemma-3-27b-it/use_translated/xor_train_full_results_predictions.jsonl"
-    # "$BASE_IN/google_gemma-3-27b-it/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions.jsonl"
-    # "$BASE_IN/google_gemma-3-27b-it/original_answer/xor_train_retrieve_eng_span_results_predictions.jsonl"
+    "$BASE_IN/google_gemma-3-27b-it/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions.jsonl"
+    "$BASE_IN/google_gemma-3-27b-it/original_answer/xor_train_retrieve_eng_span_results_predictions.jsonl"
 )
 
 OUTPUT_FILES=(
-    # "$BASE_OUT/Qwen_Qwen3-30B-A3B/use_translated/xor_dev_full_v1_1_results_predictions_translated.jsonl"
-    # "$BASE_OUT/Qwen_Qwen3-30B-A3B/use_translated/xor_train_full_results_predictions_translated.jsonl"
-    # "$BASE_OUT/Qwen_Qwen3-30B-A3B/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions_translated.jsonl"
-    # "$BASE_OUT/Qwen_Qwen3-30B-A3B/original_answer/xor_train_retrieve_eng_span_results_predictions_translated.jsonl"
-    # "$BASE_OUT/google_gemma-3-27b-it/use_translated/xor_dev_full_v1_1_results_predictions_translated.jsonl"
+    "$BASE_OUT/Qwen_Qwen3-30B-A3B/use_translated/xor_dev_full_v1_1_results_predictions_translated.jsonl"
+    "$BASE_OUT/Qwen_Qwen3-30B-A3B/use_translated/xor_train_full_results_predictions_translated.jsonl"
+    "$BASE_OUT/Qwen_Qwen3-30B-A3B/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions_translated.jsonl"
+    "$BASE_OUT/Qwen_Qwen3-30B-A3B/original_answer/xor_train_retrieve_eng_span_results_predictions_translated.jsonl"
+    "$BASE_OUT/google_gemma-3-27b-it/use_translated/xor_dev_full_v1_1_results_predictions_translated.jsonl"
     "$BASE_OUT/google_gemma-3-27b-it/use_translated/xor_train_full_results_predictions_translated.jsonl"
-    # "$BASE_OUT/google_gemma-3-27b-it/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions_translated.jsonl"
-    # "$BASE_OUT/google_gemma-3-27b-it/original_answer/xor_train_retrieve_eng_span_results_predictions_translated.jsonl"
+    "$BASE_OUT/google_gemma-3-27b-it/original_answer/xor_dev_retrieve_eng_span_v1_1_results_predictions_translated.jsonl"
+    "$BASE_OUT/google_gemma-3-27b-it/original_answer/xor_train_retrieve_eng_span_results_predictions_translated.jsonl"
 )
 
 source "$HOME/CIMCL_RAG_RESEARCH/venv/bin/activate"
