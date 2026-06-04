@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -n 16
 #SBATCH --mem=500G
-#SBATCH -J Multilingual_Retrieval
+#SBATCH -J Gemma_Multilingual_Train_Full
 #SBATCH -p short
 #SBATCH -t 24:00:00
 #SBATCH --constraint=H200|H100|RTX6000B
@@ -13,7 +13,7 @@
 
 source ./venv/bin/activate
 VENV_PYTHON=$(which python)
-#pip install -r requirements.txt
+pip install -r requirements.txt
 
 # rm -rf .qdrant-initialized qdrant_sandbox/ storage/ snapshots/ dense_rag.log
 
@@ -61,81 +61,80 @@ trap '
     exit 0
 ' TERM
 
-#
-# $VENV_PYTHON -m baselines.dense_rag --skip-loading --retrieval-type monolingual &
-# PID=$!
-# wait $PID
-#
+
+$VENV_PYTHON -m baselines.dense_rag --skip-loading --retrieval-type monolingual &
+PID=$!
+wait $PID
+
 $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type multilingual &
 PID=$!
 wait $PID
 
-# $VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type crosslingual &
-# PID=$!
-# wait $PID
+$VENV_PYTHON -m baselines.dense_rag --skip-loading --only-retrieval --retrieval-type crosslingual &
+PID=$!
+wait $PID
 
-# $VENV_PYTHON utils.translate \
-#     xor_dev_retrieve_eng_span_v1_1.jsonl \
-#     xor_train_retrieve_eng_span.jsonl \
-#     --direction en-to-target \
-#     --output-dir translated_benchmark_files \
-#     --batch-size 64 &
-# TRANSLATE_EN_TO_TARGET_PID=$!
-# wait $TRANSLATE_EN_TO_TARGET_PID
+$VENV_PYTHON utils.translate \
+    xor_dev_retrieve_eng_span_v1_1.jsonl \
+    xor_train_retrieve_eng_span.jsonl \
+    --direction en-to-target \
+    --output-dir translated_benchmark_files \
+    --batch-size 64 &
+TRANSLATE_EN_TO_TARGET_PID=$!
+wait $TRANSLATE_EN_TO_TARGET_PID
 
-# $VENV_PYTHON utils.translate \
-#     xor_dev_full_v1_1.jsonl \
-#     xor_train_full.jsonl \
-#     --direction auto \
-#     --output-dir translated_benchmark_files \
-#     --batch-size 64 &
-# TRANSLATE_TARGET_TO_EN_PID=$!
-# wait $TRANSLATE_TARGET_TO_EN_PID
+$VENV_PYTHON utils.translate \
+    xor_dev_full_v1_1.jsonl \
+    xor_train_full.jsonl \
+    --direction auto \
+    --output-dir translated_benchmark_files \
+    --batch-size 64 &
+TRANSLATE_TARGET_TO_EN_PID=$!
+wait $TRANSLATE_TARGET_TO_EN_PID
 
-# MODEL="CohereLabs/aya-101"
-# MODEL="google/gemma-3-27b-it"
+MODEL="google/gemma-3-27b-it"
 # MODEL="Qwen/Qwen3-30B-A3B"
 
-# echo "Running monolingual + xor_full"
-# $VENV_PYTHON -m baselines.dense_rag \
-#     --skip-retrieval \
-#     --retrieval-type monolingual \
-#     --span-type xor_full \
-#     --model-name "$MODEL" &
+echo "Running monolingual + xor_full"
+$VENV_PYTHON -m baselines.dense_rag \
+    --skip-retrieval \
+    --retrieval-type monolingual \
+    --span-type xor_full \
+    --model-name "$MODEL" &
 
-# PID=$!                      
-# wait $PID                    
-# echo "Completed monolingual + xor_full"
+PID=$!                      
+wait $PID                    
+echo "Completed monolingual + xor_full"
 
-# echo "Running crosslingual + xor_english_span"
-# $VENV_PYTHON -m baselines.dense_rag \
-#     --skip-retrieval \
-#     --retrieval-type crosslingual \
-#     --span-type xor_english_span \
-#     --model-name "$MODEL" &
-# PID=$!                      
-# wait $PID     
-# echo "Completed crosslingual + xor_english_span"
+echo "Running crosslingual + xor_english_span"
+$VENV_PYTHON -m baselines.dense_rag \
+    --skip-retrieval \
+    --retrieval-type crosslingual \
+    --span-type xor_english_span \
+    --model-name "$MODEL" &
+PID=$!                      
+wait $PID     
+echo "Completed crosslingual + xor_english_span"
 
-# echo "Running multilingual + xor_english_span"
-# $VENV_PYTHON -m baselines.dense_rag \
-#     --skip-retrieval \
-#     --retrieval-type multilingual \
-#     --span-type xor_english_span \
-#     --model-name "$MODEL" &
-# PID=$!                      
-# wait $PID     
-# echo "Completed multilingual + xor_english_span"
+echo "Running multilingual + xor_english_span"
+$VENV_PYTHON -m baselines.dense_rag \
+    --skip-retrieval \
+    --retrieval-type multilingual \
+    --span-type xor_english_span \
+    --model-name "$MODEL" &
+PID=$!                      
+wait $PID     
+echo "Completed multilingual + xor_english_span"
 
-# echo "Running multilingual + xor_full"
-# $VENV_PYTHON -m baselines.dense_rag \
-#     --skip-retrieval \
-#     --retrieval-type multilingual \
-#     --span-type xor_full \
-#     --model-name "$MODEL" &
-# PID=$!                      
-# wait $PID     
-# echo "Completed multilingual + xor_full"
+echo "Running multilingual + xor_full"
+$VENV_PYTHON -m baselines.dense_rag \
+    --skip-retrieval \
+    --retrieval-type multilingual \
+    --span-type xor_full \
+    --model-name "$MODEL" &
+PID=$!                      
+wait $PID     
+echo "Completed multilingual + xor_full"
 
 echo "Stopping Qdrant"
 kill "$QDRANT_PID" 2>/dev/null || true

@@ -663,7 +663,7 @@ class DenseRAG:
                 logger.info(f"Starting inference: model={model_name}  span={span_type}")
                 await self.chat_llm(
                     model_name=model_name,
-                    input_dir=Path(retrieval_type) / "done_dense_retrieval",
+                    input_dir=Path(retrieval_type) / "dense_retrieval",
                     retrieval_type=retrieval_type,
                     span_type=span_type,
                     inference_batch_size=8,
