@@ -136,11 +136,7 @@ python -m baselines.dense_rag \
 
 #### Output Directories
 - **Retrieval Results**: Saved under `<retrieval_type>/dense_retrieval/<dataset_name>_results.json`.
-- **LLM Predictions**: Read from `<retrieval_type>/done_dense_retrieval/` and written to `<retrieval_type>/[span_type]_llm_predictions/[model_name]/[subfolder]/[dataset_name]_predictions.jsonl`.
-
-> [!IMPORTANT]
-> To run LLM generation, you must manually move/copy your retrieved files from the `<retrieval_type>/dense_retrieval/` directory to a subdirectory named `<retrieval_type>/done_dense_retrieval/`.
-
+- **LLM Predictions**: Read from `<retrieval_type>/dense_retrieval/` and written to `<retrieval_type>/[span_type]_llm_predictions/[model_name]/[subfolder]/[dataset_name]_predictions.jsonl`.
 ---
 
 ## Translation Pipelines
