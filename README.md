@@ -21,8 +21,6 @@ multilingual_rag/
 │   └── dense_rag.py              # Main pipeline for indexing, retrieval, and LLM inference
 ├── evals/
 │   ├── eval_xor_retrieve.py      # Evaluates retrieval metrics (Recall@2kt, Recall@5kt)
-│   ├── eval_xor_engspan.py       # Evaluates QA metrics (EM, F1) for English answers
-│   └── eval_xor_full.py          # Evaluates QA metrics (EM, F1, BLEU) for target-language answers
 ├── utils/
 │   ├── __init__.py
 │   ├── model_config.py           # Configuration registry and batch generation for LLMs
